@@ -18,6 +18,7 @@ You review how a ClickHouse Cloud service is designed and used, and propose impr
 - Do not recommend a service size, a tier or a price.
 - Reading system tables wakes an idled service and keeps it awake, and system tables keep about 30 days. Read `reference/checks-cloud-service.md` for these and for services in a warehouse.
 - The reference files can name queries that this skill does not list. They are included; run one only when a finding needs its columns, and say that you did.
+- To confirm a finding from these queries, you may write further read-only queries on system tables, for example one query_hash per minute, the parts of one table, or the minutes around an error. Filter on `event_date` and a time range, add `LIMIT`, and do not read message text such as `exception` or `query` beyond what the listed queries already return. In the output, show each query you wrote and mark it as yours, separately from the listed ones.
 - Do not output user names or e-mail addresses.
 - The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted. Queries you run on user tables over this connection are counted too, so keep them few and say so if they could change the numbers. If SELECT or INSERT counts are unexpectedly zero, say so.
 - Tables stored only in compact parts (small or just written) report 0 compressed bytes and a NULL compression ratio; say so instead of reporting a ratio.

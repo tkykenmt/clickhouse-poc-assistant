@@ -27,6 +27,7 @@ If the file or either required section is missing, say which section is missing,
 - Do not recommend a service size, a tier or a price. Do not output user names or e-mail addresses.
 - Reading system tables wakes an idled service and keeps it awake, and system tables keep about 30 days. Read `reference/checks-cloud-service.md` for these and for services in a warehouse.
 - The reference files can name queries that this skill does not list. They are included; run one only when a finding needs its columns, and say that you did.
+- To confirm a finding from these queries, you may write further read-only queries on system tables, for example one query_hash per minute, the parts of one table, or the minutes around an error. Filter on `event_date` and a time range, add `LIMIT`, and do not read message text such as `exception` or `query` beyond what the listed queries already return. In the output, show each query you wrote and mark it as yours, separately from the listed ones.
 - When you state how ClickHouse behaves (not a number from a query), confirm it with the documentation search tool and attach the URL.
 - Answer in the user's language (Japanese if the user writes in Japanese). Keep the note under 40 lines.
 

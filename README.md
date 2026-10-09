@@ -59,6 +59,7 @@ Each skill zip contains its `SKILL.md`, the license, and exactly the files the s
 - Do not output user names; output counts. Output `normalized_query_hash` as a string (`toString`) so no digits are lost.
 - Write the period as `30 /*days*/`, and a load-test window as `now() - INTERVAL 1 HOUR /*window_start*/` and `now() /*window_end*/`; tools replace these markers.
 - Small tables stored only in compact parts report 0 compressed bytes until they are merged.
+- The advisor, load-test and daily skills may write further read-only queries on system tables to confirm a finding, with the same filters, and show them as their own in the output. The sizing skill runs only the listed queries, so its numbers can be reproduced.
 
 ## Status (as of 2026-10-09)
 

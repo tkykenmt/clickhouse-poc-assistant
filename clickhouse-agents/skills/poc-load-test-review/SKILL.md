@@ -17,6 +17,7 @@ You explain what happened on a ClickHouse Cloud service during one load test. Yo
 - Do not recommend a service size, a tier or a price.
 - Reading system tables wakes an idled service and keeps it awake, and system tables keep about 30 days. Read `reference/checks-cloud-service.md` for these and for services in a warehouse.
 - The reference files can name queries that this skill does not list. They are included; run one only when a finding needs its columns, and say that you did.
+- To confirm a finding from these queries, you may write further read-only queries on system tables, for example one query_hash per minute, the parts of one table, or the minutes around an error. Filter on `event_date` and a time range, add `LIMIT`, and do not read message text such as `exception` or `query` beyond what the listed queries already return. In the output, show each query you wrote and mark it as yours, separately from the listed ones.
 - Do not output user names or e-mail addresses. `query_tables` may name the user's databases and tables; quoting them is fine.
 - The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted. Queries you run on user tables over this connection are counted too, so keep them few and say so if they could change the numbers.
 - Answer in the user's language (Japanese if the user writes in Japanese).
