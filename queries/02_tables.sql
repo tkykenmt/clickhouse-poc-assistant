@@ -1,4 +1,5 @@
 -- Storage per table: rows, compressed and uncompressed bytes, parts and partitions.
+-- Note: compact parts (small, recently written) can report 0 compressed bytes until they are merged into wide parts.
 SELECT
     p.database AS database,
     p.table AS table,
@@ -7,8 +8,8 @@ SELECT
     any(t.sorting_key) AS sorting_key,
     count() AS active_parts,
     uniqExact(p.partition) AS partitions,
-    min(p.partition) AS first_partition,
-    max(p.partition) AS last_partition,
+    nullIf(min(p.min_time), toDateTime(0)) AS data_min_time,  -- NULL unless the partition key is time-based
+    nullIf(max(p.max_time), toDateTime(0)) AS data_max_time,
     sum(p.rows) AS rows,
     sum(p.data_compressed_bytes) AS compressed_bytes,
     sum(p.data_uncompressed_bytes) AS uncompressed_bytes,

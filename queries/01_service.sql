@@ -9,3 +9,4 @@ SELECT
 FROM clusterAllReplicas('default', system.asynchronous_metrics)
 GROUP BY replica
 ORDER BY replica
+SETTINGS skip_unavailable_shards = 1

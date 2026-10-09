@@ -10,7 +10,8 @@ SELECT
 FROM clusterAllReplicas('default', merge('system', '^query_log'))
 WHERE type = 'QueryFinish'
   AND is_initial_query
-  AND user NOT LIKE '%-internal'
+  AND user != currentUser()
+  AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
   AND query_kind = 'Insert'
   AND event_date >= today() - 30 /*days*/
 GROUP BY target_table

@@ -1,7 +1,7 @@
 # PoC evaluation areas from public ClickHouse sources
 
 Each area lists what to measure and where the idea comes from. Every source is a public page on clickhouse.com.
-Pass lines are always the user's numbers; this file gives none.
+Pass thresholds are always the user's numbers; this file gives none.
 
 ## Principle: test with your own data and queries
 

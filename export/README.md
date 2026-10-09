@@ -13,7 +13,7 @@ Query text is not exported by default.
 | File | Contents | Used for |
 |---|---|---|
 | `01_service` | version, uptime, CPU and memory limits per replica | current configuration |
-| `02_tables` | rows, compressed and uncompressed size, parts, partition range and sorting key per table | stored volume and compression |
+| `02_tables` | rows, compressed and uncompressed size, parts, partitions, time range of the data (when the partition key is time-based) and sorting key per table | stored volume and compression |
 | `03_columns` | type, codec, compressed and uncompressed size per column (largest 2,000 columns) | compression breakdown |
 | `04_ingest_daily` | rows and bytes ingested per day and table | daily ingest |
 | `05_ingest_hourly` | rows and bytes ingested per hour across all tables | ingest peaks |
@@ -23,11 +23,13 @@ Query text is not exported by default.
 | `optional/09_query_patterns_with_text` (optional) | `06` plus one sample query text per pattern (first 300 characters) | what the queries do |
 
 Query patterns are grouped by `normalized_query_hash`, so queries that differ only in literal values fall into the same pattern.
-Queries that ClickHouse Cloud runs for its own monitoring (user names ending in `-internal`) are excluded.
+Queries that ClickHouse Cloud runs for its own monitoring (database users whose names end in `-internal`) are excluded, and so are the export user's own queries.
 User names are not exported; only the number of users per pattern is.
 
 The sample text in `09` includes literal values such as those in WHERE clauses.
 Export it with `--with-query-text` only if your data-handling rules allow it.
+
+Small tables stored only in compact parts report 0 compressed bytes (and no compression ratio) until they are merged.
 
 ## Period
 
@@ -37,7 +39,7 @@ Pick the export date so that the period covers the PoC load.
 
 ## Steps
 
-### 1. Create a read-only user
+### 1. Create a read-only database user
 
 As an admin user, run `setup_user.sql` in the SQL console.
 Replace the password.
@@ -49,6 +51,8 @@ GRANT SELECT ON system.* TO sizing_reader;
 GRANT REMOTE ON *.* TO sizing_reader;
 GRANT CREATE TEMPORARY TABLE ON *.* TO sizing_reader;
 ```
+
+Use this user only for the export. Its own queries are left out of the results, so if your workload ran as the same user, the workload would be left out too.
 
 If a `SHOW` grant is missing, your tables silently drop out of the results without an error.
 Check that `02_tables.csv` lists the tables you expect.
@@ -64,10 +68,12 @@ export CH_USER="sizing_reader"
 read -rs CH_PASSWORD; export CH_PASSWORD   # type the password (not shown)
 ./export.sh                        # last 30 days
 ./export.sh 14                     # last 14 days
-./export.sh 30 --with-query-text   # also export sample query text
+./export.sh --with-query-text      # last 30 days, with sample query text
 ```
 
 This writes `sizing_export_<timestamp>.tar.gz`.
+The password is passed to curl on standard input, not on the command line.
+If a query fails, its error is saved as `<query>.error.txt` in the archive and the script exits with status 1.
 Open the CSV files in a spreadsheet and check them before sharing.
 
 You can also run the queries one by one in the SQL console and save each result with **•••** → **Download as CSV**.

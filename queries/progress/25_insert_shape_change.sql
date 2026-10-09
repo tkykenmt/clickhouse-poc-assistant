@@ -13,6 +13,7 @@ WHERE type = 'QueryFinish'
   AND is_initial_query
   AND user != currentUser()
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
+  AND event_date >= today() - 8
   AND event_time >= now() - INTERVAL 8 DAY
 GROUP BY target_table
 HAVING target_table NOT LIKE 'system.%' AND target_table NOT LIKE '\_table\_function.%'

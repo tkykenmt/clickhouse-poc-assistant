@@ -11,7 +11,7 @@ rm -rf "$DIST"; mkdir -p "$DIST"
 
 kit="$TMP/ch-sizing-export"
 mkdir -p "$kit/queries/optional"
-cp "$ROOT"/export/{README.md,README.ja.md,setup_user.sql,export.sh} "$kit/"
+cp "$ROOT"/export/{README.md,README.ja.md,setup_user.sql,export.sh} "$ROOT/LICENSE" "$kit/"
 cp "$ROOT"/queries/*.sql "$kit/queries/"
 cp "$ROOT"/queries/optional/*.sql "$kit/queries/optional/"
 (cd "$TMP" && zip -qr "$DIST/ch-sizing-export.zip" ch-sizing-export)
@@ -20,7 +20,7 @@ for dir in "$ROOT"/clickhouse-agents/skills/*/; do
   name="$(basename "$dir")"
   out="$TMP/skills/$name"
   mkdir -p "$out"
-  cp "$dir/SKILL.md" "$out/"
+  cp "$dir/SKILL.md" "$ROOT/LICENSE" "$out/"
   # The agent cannot list folders, so SKILL.md names every file; ship exactly those.
   refs="$(grep -oE '(queries/[A-Za-z0-9_/]+\.sql|reference/[A-Za-z0-9_-]+\.md)' "$dir/SKILL.md" | sort -u)"
   [ -n "$refs" ] || { echo "$name: SKILL.md references no files" >&2; exit 1; }

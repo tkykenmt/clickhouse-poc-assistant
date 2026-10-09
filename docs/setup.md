@@ -2,35 +2,18 @@
 
 [日本語](setup.ja.md)
 
-This guide sets up the "PoC assistant" agent in ClickHouse Agents. You need a ClickHouse Cloud organization where ClickHouse Agents is available (it is in beta) and a service to evaluate.
+This guide sets up the "PoC assistant" agent in [ClickHouse Agents](https://clickhouse.com/docs/products/cloud/features/ai-ml/agents). You need a ClickHouse Cloud organization where ClickHouse Agents is available (it is in beta) and a service to evaluate.
 
-## 1. Get the zips
+## Quick start
 
-Download the zips from the latest release: https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest
+1. Enable the Remote MCP server on the service ([step 1](#1-enable-the-remote-mcp-server-on-the-service)).
+2. Download the five skill zips ([step 2](#2-download-the-skills)).
+3. Upload each zip as a skill in ClickHouse Agents ([step 3](#3-upload-the-skills)).
+4. Create the agent and paste the instructions ([step 4](#4-create-the-agent)).
+5. Build the PoC plan with the agent and attach it ([step 5](#5-plan-the-poc-and-attach-the-plan)).
+6. Ask for statistics, a review or the daily note ([step 6](#6-use-it)).
 
-They are built by GitHub Actions on every tag. To build them yourself instead:
-
-```bash
-git clone https://github.com/tkykenmt/clickhouse-poc-assistant.git
-cd clickhouse-poc-assistant
-scripts/build.sh
-scripts/fetch-public-skills.sh   # writes into dist/
-```
-
-A release (or `dist/`) holds:
-
-| File | Use |
-|---|---|
-| `poc-plan-builder-skill.zip` | skill |
-| `poc-sizing-stats-skill.zip` | skill |
-| `poc-schema-query-advisor-skill.zip` | skill |
-| `poc-daily-progress-skill.zip` | skill |
-| `clickhouse-architecture-advisor-skill.zip` | public skill, unmodified |
-| `ch-sizing-export.zip` | export kit for users who run the queries themselves (not needed for the agent) |
-
-`clickhouse-best-practices` is built into ClickHouse Agents, so it is not in `dist/`.
-
-## 2. Enable the Remote MCP server on the service
+## 1. Enable the Remote MCP server on the service
 
 The agent queries the service through the ClickHouse Remote MCP server, which must be enabled per service.
 
@@ -39,12 +22,32 @@ The agent queries the service through the ClickHouse Remote MCP server, which mu
 
 Reference: https://clickhouse.com/docs/products/cloud/features/ai-ml/remote-mcp
 
+## 2. Download the skills
+
+Download from the latest release, one by one:
+
+| Skill | Download |
+|---|---|
+| `poc-plan-builder` | [poc-plan-builder-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-plan-builder-skill.zip) |
+| `poc-sizing-stats` | [poc-sizing-stats-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-sizing-stats-skill.zip) |
+| `poc-schema-query-advisor` | [poc-schema-query-advisor-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-schema-query-advisor-skill.zip) |
+| `poc-daily-progress` | [poc-daily-progress-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-daily-progress-skill.zip) |
+| `clickhouse-architecture-advisor` (public skill, unmodified) | [clickhouse-architecture-advisor-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/clickhouse-architecture-advisor-skill.zip) |
+
+Or get all five at once as [poc-assistant-skills.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-assistant-skills.zip) (unzip it to get the five skill zips), or with the GitHub CLI:
+
+```bash
+gh release download -R tkykenmt/clickhouse-poc-assistant -p '*-skill.zip'
+```
+
+`clickhouse-best-practices` is built into ClickHouse Agents and needs no download. `ch-sizing-export.zip` in the release is the export kit for users who run the queries themselves; the agent does not need it. To build the zips from source instead, see [Build](../README.md#build).
+
 ## 3. Upload the skills
 
 1. In the Cloud console, open **ClickHouse agents** in the left navigation.
 2. Open **Skills** in the left bar of ClickHouse Agents.
-3. For each skill zip from step 1 (all but `ch-sizing-export.zip`): **Create skill** (the + button) → **Upload skill** → choose the zip.
-4. Check that all five skills are listed and that each shows its `queries` or `reference` folder.
+3. For each skill zip: **Create skill** (+) → **Upload skill** → choose the zip. ClickHouse Agents takes one skill per upload.
+4. Check that the five skills are listed.
 
 Reference: https://clickhouse.com/docs/products/cloud/features/ai-ml/agents/builder/skills
 
@@ -56,7 +59,7 @@ Open **Agent Builder**, choose **Create new agent**, and set:
 |---|---|
 | Name | PoC assistant |
 | Description | Helps run a ClickHouse Cloud PoC: plans, sizing statistics, table and query review, daily progress (read-only) |
-| Model | provider **Claude**, model `claude-sonnet-5-5` (any model listed for your organization works; this is the one tested) |
+| Model | provider **Claude**, model `claude-sonnet-5-5` (other listed models should work; this is the one tested) |
 | Instructions | the text below |
 | Tools | **Add tools** → **ClickHouse** (MCP server) and **Artifacts** |
 | Skills | **Selected**, then add the four `poc-*` skills, `clickhouse-best-practices` and `clickhouse-architecture-advisor` |
@@ -67,19 +70,21 @@ Instructions:
 You are an assistant that helps run a ClickHouse Cloud PoC. Pick the skill for each request: poc-plan-builder to plan the PoC and its success criteria, poc-sizing-stats for sizing statistics, poc-schema-query-advisor to review table design and queries (judge with clickhouse-best-practices and clickhouse-architecture-advisor), and poc-daily-progress for progress, the daily note and next actions. The PoC target and success criteria are in the PoC plan file (a file starting with poc-plan) in the file context. For every request, read system tables only and never select rows from the user's own tables. Write numbers only from query results; do not guess. When you state how ClickHouse behaves, confirm it with documentation search and attach the URL. Do not recommend a service size, a tier or a price. Do not output user names or e-mail addresses. Present improvements as candidates to verify, not as decisions. Answer in the user's language.
 ```
 
-Click **Create**. When you change the agent later, click **Save** and wait for the "updated" notification; changes are lost otherwise.
+Click **Create**. When you change the agent later, click **Save** and wait for the "updated" notification; otherwise the change can be lost.
 
-The first time the agent calls the ClickHouse tool, it asks you to connect. If it does not, open **MCP settings** in the left bar, find **ClickHouse**, and click **Connect**. Access is limited to the organizations and services your Cloud user can reach.
+The first time the agent calls the ClickHouse tool, it asks you to connect. If it does not, open **MCP settings** in the left bar, find **ClickHouse**, and click **Connect**. The agent sees only the organizations and services your Cloud user can access.
+
+The queries leave out the connected user's own queries. If the PoC workload runs as the same database user that the agent or an export uses, its queries are left out too, so run the workload under its own database user.
 
 References: https://clickhouse.com/docs/products/cloud/features/ai-ml/agents/quickstart , https://clickhouse.com/docs/products/cloud/features/ai-ml/agents/builder/mcp-servers
 
 ## 5. Plan the PoC and attach the plan
 
-1. Start a chat with the agent and ask, for example: "I want to plan a PoC. The service is <name>, from <start> to <end>. We need to decide whether ..." The agent asks about data, queries and targets, proposes criteria with sources, and asks you for each pass line.
-2. When the plan is written, save it as `poc-plan-<name>.md`.
-3. In Agent Builder, open the agent, and under **File context** click **Add** and upload the file.
+1. Start a chat with the agent and ask, for example: "I want to plan a PoC. The service is <name>, from <start> to <end>. We need to decide whether ..." The agent asks about data, queries and targets, proposes criteria with sources, and asks you for each pass threshold.
+2. The agent outputs the plan as `poc-plan-<name>.md`. Download it.
+3. In Agent Builder, open the agent, and under **File context** click **Add** and upload the file. Click **Save**.
 
-The plan needs these sections, in English or Japanese: `## Target` (`## 対象`), `## Success criteria` (`## 成功基準`), and optionally `## Log` (`## 経緯`). Everyone who can use the agent can read this file, so create one agent per PoC.
+The plan needs the sections `## Target` and `## Success criteria`, and optionally `## Log` (the Japanese headings `## 対象`, `## 成功基準` and `## 経緯` also work). Everyone who can use the agent can read this file, so create one agent per PoC.
 
 ## 6. Use it
 
@@ -91,10 +96,18 @@ The plan needs these sections, in English or Japanese: `## Target` (`## 対象`)
 
 Suggested rhythm: the daily note every morning and the full review once a week.
 
+## Upgrading to a new release
+
+Skills cannot be replaced in place, and deleting a skill removes it from the agent. For each skill that changed:
+
+1. Download the new zip.
+2. In **Skills**, open the skill and delete it.
+3. Upload the new zip.
+4. In Agent Builder, open the agent, add the skill again under **Skills**, and click **Save**. Wait for the "updated" notification.
+
 ## Limitations (as of 2026-10-08)
 
-- **Scheduled chats**: the feature is available, but creating a schedule for an agent with the ClickHouse tool keeps showing "Reconnect this MCP server before enabling the schedule." even after reconnecting. Until this changes, run the daily note and the weekly review by asking the agent.
+- **Scheduled chats**: the feature is available, but creating a schedule for an agent with the ClickHouse tool keeps showing "Reconnect this MCP server before enabling the schedule." even after reconnecting. Until this changes, ask the agent for the daily note and the weekly review.
 - **Memory**: memories created by hand in the Memory panel did not reach the agent in testing, so the plan is passed as file context instead.
 - **Agent API**: not available, so the agent cannot be called from outside.
-- **Updating a skill**: there is no in-place replacement of a skill's files. Delete the skill, upload the new zip, then add it to the agent again and save; deleting removes it from the agent.
 - ClickHouse Agents is in beta; screens and behaviour may change.

@@ -8,18 +8,24 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  # Pinned ClickHouse used to check and run the queries (LTS).
+  CLICKHOUSE_TAG: v26.8.21.10-lts
+  CLICKHOUSE_VERSION: 26.8.21.10
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ClickHouse (for SQL syntax checks)
+      - name: Install ClickHouse ${{ env.CLICKHOUSE_VERSION }}
         run: |
-          curl -sSL https://clickhouse.com/ | sh
-          sudo mv ./clickhouse /usr/local/bin/clickhouse
+          curl -fsSL -o ch.tgz "https://github.com/ClickHouse/ClickHouse/releases/download/${CLICKHOUSE_TAG}/clickhouse-common-static-${CLICKHOUSE_VERSION}-amd64.tgz"
+          tar -xzf ch.tgz
+          sudo install "clickhouse-common-static-${CLICKHOUSE_VERSION}/usr/bin/clickhouse" /usr/local/bin/clickhouse
           clickhouse --version
 
       - name: Check SQL syntax
@@ -34,10 +40,17 @@ jobs:
           done < <(find queries -name '*.sql' | sort)
           exit $status
 
+      - name: Run queries on a throwaway server
+        run: scripts/test-queries.sh
+
+      - name: ShellCheck
+        run: shellcheck export/export.sh scripts/*.sh
+
       - name: Build zips
         run: |
           scripts/build.sh
           scripts/fetch-public-skills.sh
+          scripts/bundle.sh
           ls -l dist
 
       - name: Upload build artifact
@@ -46,11 +59,26 @@ jobs:
           name: dist
           path: dist/*.zip
 
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.zip \
-            --title "$GITHUB_REF_NAME" \
-            --notes "Skill zips for ClickHouse Agents and the export kit, built from $GITHUB_SHA. See docs/setup.md for how to install them."
+          notes="Skill zips for ClickHouse Agents, a bundle of all skill zips, and the export kit, built from ${GITHUB_SHA}. See docs/setup.md for how to install them."
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --notes "$notes"
+          fi

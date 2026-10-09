@@ -21,6 +21,7 @@ WHERE type = 'QueryFinish'
   AND is_initial_query
   AND user != currentUser()
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
+  AND event_date >= today() - 8
   AND event_time >= now() - INTERVAL 8 DAY
 GROUP BY query_hash
 HAVING executions_24h > 0 AND executions_prev_7d > 0

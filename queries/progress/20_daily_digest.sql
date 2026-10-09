@@ -17,6 +17,7 @@ WHERE type IN ('QueryFinish', 'ExceptionWhileProcessing')
   AND user != currentUser()
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
   AND query_kind IN ('Select', 'Insert')
+  AND event_date >= toDate(base_start)
   AND event_time >= base_start
 GROUP BY query_kind
 ORDER BY query_kind

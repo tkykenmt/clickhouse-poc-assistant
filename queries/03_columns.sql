@@ -1,4 +1,5 @@
 -- Storage per column: type, codec and compression, largest first.
+-- Note: columns of tables stored only in compact parts report 0 bytes; their ratio is NULL.
 SELECT
     database,
     table,
