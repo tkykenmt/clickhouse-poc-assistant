@@ -1,0 +1,56 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ClickHouse (for SQL syntax checks)
+        run: |
+          curl -sSL https://clickhouse.com/ | sh
+          sudo mv ./clickhouse /usr/local/bin/clickhouse
+          clickhouse --version
+
+      - name: Check SQL syntax
+        run: |
+          status=0
+          while IFS= read -r f; do
+            if clickhouse format --query "$(cat "$f")" > /dev/null; then
+              echo "ok   $f"
+            else
+              echo "FAIL $f"; status=1
+            fi
+          done < <(find queries -name '*.sql' | sort)
+          exit $status
+
+      - name: Build zips
+        run: |
+          scripts/build.sh
+          scripts/fetch-public-skills.sh
+          ls -l dist
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*.zip
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.zip \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Skill zips for ClickHouse Agents and the export kit, built from $GITHUB_SHA. See docs/setup.md for how to install them."
