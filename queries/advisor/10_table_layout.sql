@@ -20,15 +20,16 @@ LEFT JOIN
 (
     SELECT
         database, table,
-        count() AS active_parts,
-        uniqExact(partition) AS partitions,
-        max(parts_per_partition) AS max_parts_in_partition,
-        round(median(rows)) AS median_part_rows,
-        countIf(rows < 1000000) AS small_parts,
-        countIf(startsWith(partition_id, 'patch-')) AS patch_parts
+        -- Patch parts of lightweight updates are counted only in patch_parts.
+        countIf(NOT is_patch) AS active_parts,
+        uniqExactIf(partition, NOT is_patch) AS partitions,
+        maxIf(parts_per_partition, NOT is_patch) AS max_parts_in_partition,
+        round(medianIf(rows, NOT is_patch)) AS median_part_rows,
+        countIf(rows < 1000000 AND NOT is_patch) AS small_parts,
+        countIf(is_patch) AS patch_parts
     FROM
     (
-        SELECT database, table, partition, partition_id, rows, count() OVER (PARTITION BY database, table, partition) AS parts_per_partition
+        SELECT database, table, partition, rows, startsWith(partition_id, 'patch-') AS is_patch, count() OVER (PARTITION BY database, table, partition) AS parts_per_partition
         FROM system.parts
         WHERE active
     )

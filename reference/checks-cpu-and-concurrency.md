@@ -17,8 +17,8 @@ Each check names the columns it reads, the rule, and the public source of the ru
 ## How many threads did each query use?
 
 - **Columns**: `avg_peak_threads` (`30`).
-- **Rule**: it can exceed `max_threads`: reads from storage run on a separate reader pool, and those threads count for the query. Many concurrent queries with many threads each means many threads queue for few cores.
-- **Source**: https://clickhouse.com/docs/integrations/connectors/data-ingestion/AWS/integrating-s3-with-clickhouse#read--writes , https://clickhouse.com/docs/reference/settings/session-settings/max-threads
+- **Rule**: it can exceed `max_threads`: reads from storage run on a separate reader pool, and in the ClickHouse source those reader threads join the query's thread group, so they are counted in `peak_threads_usage`. Many concurrent queries with many threads each means many threads queue for few cores.
+- **Source**: https://clickhouse.com/docs/integrations/connectors/data-ingestion/AWS/integrating-s3-with-clickhouse#read--writes , https://clickhouse.com/docs/reference/settings/session-settings/max-threads , ClickHouse source: https://github.com/ClickHouse/ClickHouse/blob/master/src/Disks/IO/ThreadPoolRemoteFSReader.cpp , https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/threadPoolCallbackRunner.h (`ThreadGroupSwitcher`)
 
 ## Did the achieved rate fall short of the target?
 
@@ -35,17 +35,17 @@ Each check names the columns it reads, the rule, and the public source of the ru
 ## Why did queries fail?
 
 - **Columns**: `top_errors`, `errors` (`30`), `max_running_queries` (`31`).
-- **Rule**: `TOO_MANY_SIMULTANEOUS_QUERIES` means the limit of 1000 concurrent queries per replica was reached. For any other code, look it up with the documentation search tool before explaining it.
-- **Source**: https://clickhouse.com/docs/products/cloud/reference/architecture#concurrency-limits
+- **Rule**: `TOO_MANY_SIMULTANEOUS_QUERIES` means a limit on concurrent queries was reached: the limit of 1000 concurrent queries per replica, or a lower `max_concurrent_*` setting (for example `max_concurrent_queries_for_user`). Compare `max_running_queries` with 1000 before naming the replica limit; if it stays well below, look for a lower setting. For any other code, look it up with the documentation search tool before explaining it.
+- **Source**: https://clickhouse.com/docs/products/cloud/reference/architecture#concurrency-limits , https://clickhouse.com/docs/reference/settings/session-settings/max-concurrent
 
 ## Did queries get fewer CPU slots than they asked for?
 
 - **Columns**: `queries_delayed_for_cpu_slots` per replica (`31`); `avg_cpu_slot_wait_ms` (`30`).
-- **Rule**: when many concurrent queries with several threads each use all CPU slots, the server is in the overload state. `ConcurrencyControlQueriesDelayed` counts queries that got fewer slots than requested because of this pressure (a contention indicator): they still run, with fewer threads. `ConcurrencyControlWaitMicroseconds` is time spent waiting on CPU resource requests of workload scheduling; it stays at 0 when no CPU workload is defined, so a 0 there does not contradict a high delayed count. Read the delayed count together with `cpu_wait_ratio`.
-- **Source**: https://clickhouse.com/docs/reference/system-tables/events , https://clickhouse.com/docs/concepts/features/configuration/server-config/workload-scheduling
+- **Rule**: when many concurrent queries with several threads each use all CPU slots, the server is in the overload state. `ConcurrencyControlQueriesDelayed` is the number of queries delayed by CPU slot capacity pressure (a contention indicator). `ConcurrencyControlWaitMicroseconds` is the time a query waited on resource requests for CPU slots. In the ClickHouse source, the delayed count is raised when a query asks for more slots than are available (it is still granted its minimum and runs), and the wait time is counted only by the workload scheduler's CPU allocations, so without CPU workloads it stays at 0 and does not contradict a high delayed count. Read the delayed count together with `cpu_wait_ratio`.
+- **Source**: https://clickhouse.com/docs/reference/system-tables/events , https://clickhouse.com/docs/concepts/features/configuration/server-config/workload-scheduling , ClickHouse source: https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/ConcurrencyControl.cpp , https://github.com/ClickHouse/ClickHouse/blob/master/src/Common/Scheduler/CPUSlotsAllocation.cpp
 
 ## Was memory under pressure?
 
-- **Columns**: `memory_used_ratio` (`CGroupMemoryUsedWithoutPageCache` ÷ `CGroupMemoryTotal`) per replica (`31`); `max_memory_bytes` per pattern (`30`, `queries/advisor/11_query_efficiency.sql`); `MEMORY_LIMIT_EXCEEDED` in `top_errors` or in `queries/progress/26_errors_by_code.sql`.
-- **Rule**: a ratio approaching 1 means memory pressure (ClickHouse blog). The values without page cache exclude the userspace page cache, which is evicted when memory is needed. For `MEMORY_LIMIT_EXCEEDED`, the usual causes are large joins and aggregations on high-cardinality keys; the remedies are spilling to disk (`max_bytes_before_external_group_by`, `max_bytes_before_external_sort`), a smaller right-hand table or another join algorithm, or more memory.
+- **Columns**: `memory_used_ratio` (`CGroupMemoryUsed` ÷ `CGroupMemoryTotal`) and `memory_used_ratio_without_page_cache` per replica (`31`); `max_memory_bytes` per pattern (`30`, `queries/advisor/11_query_efficiency.sql`); `MEMORY_LIMIT_EXCEEDED` in `top_errors` or in `queries/progress/26_errors_by_code.sql`.
+- **Rule**: `memory_used_ratio` approaching 1 means memory pressure (ClickHouse blog). `CGroupMemoryUsedWithoutPageCache` is `CGroupMemoryUsed` minus the ClickHouse userspace page cache (asynchronous_metrics documentation); when the first ratio is high but the second is not, the difference is that cache, and say so. For `MEMORY_LIMIT_EXCEEDED`, the usual causes are large joins and aggregations on high-cardinality keys; the remedies are spilling to disk (`max_bytes_before_external_group_by`, `max_bytes_before_external_sort`), a smaller right-hand table or another join algorithm, or more memory.
 - **Source**: https://clickhouse.com/blog/monitor-and-scale-clickhouse-cloud-with-clickhousectl (blog) , https://clickhouse.com/docs/reference/system-tables/asynchronous_metrics , https://clickhouse.com/docs/resources/support-center/knowledge-base/performance-optimization/memory-limit-exceeded-for-query

@@ -36,10 +36,13 @@ FROM
     SELECT
         'refreshable view failing' AS check,
         concat(database, '.', view) AS object,
-        concat('status=', any(status), ' retry=', toString(max(retry))) AS detail,
+        -- occurrences is the number of replicas that report the failure; last_success is 'none' when no replica
+        -- has a successful refresh since its start.
+        concat('status=', any(status), ' retry=', toString(max(retry)),
+               ' last_success=', ifNull(toString(max(last_success_time)), 'none')) AS detail,
         count() AS occurrences,
-        min(ifNull(last_success_time, toDateTime(0))) AS first_time,
-        max(ifNull(last_refresh_time, toDateTime(0))) AS last_time
+        min(ifNull(last_refresh_time, now())) AS first_time,
+        max(ifNull(last_refresh_time, now())) AS last_time
     FROM clusterAllReplicas('default', system.view_refreshes)
     WHERE exception != ''
     GROUP BY object

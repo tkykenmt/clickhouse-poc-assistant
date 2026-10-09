@@ -58,6 +58,12 @@ for i in $(seq 1 10); do
 done
 admin "INSERT INTO app.events SETTINGS async_insert = 1, wait_for_async_insert = 1 VALUES (now(), 1, 'a', 1.0)"
 admin "SELECT * FROM app.missing" >/dev/null 2>&1 || true
+# INSERT ... SELECT names its source in tables; only the target may count as an insert target.
+admin "CREATE TABLE app.src ENGINE = MergeTree ORDER BY tuple() AS SELECT number AS n FROM numbers(10)"
+admin "CREATE TABLE app.copy (n UInt64) ENGINE = MergeTree ORDER BY tuple()"
+admin "INSERT INTO app.copy SELECT n FROM app.src"
+# A column named final must not count as FINAL.
+admin "SELECT v AS final_x FROM app.events WHERE user_id = 999999 FORMAT Null"
 admin "SYSTEM FLUSH LOGS"
 
 # The least-privilege user from export/setup_user.sql.
@@ -84,6 +90,30 @@ elif printf '%s\n' "$same_user" | awk -F'\t' '$3 == "system.contributors" {found
   echo "FAIL 06 run as the workload's user kept its own system-table reads"; failed=$((failed + 1))
 else
   echo "ok   06 keeps the same user's workload and drops its own system-table reads"
+fi
+
+# Failures before start have no tables; read as the same user they must stay (26).
+same_user_errors="$("$CH" client --port "$TCP" -q "$(cat "$ROOT/queries/progress/26_errors_by_code.sql")" --format TSV)"
+if printf '%s\n' "$same_user_errors" | awk -F'\t' '$1 == "UNKNOWN_TABLE" {found=1} END {exit !found}'; then
+  echo "ok   26 keeps the same user's failures before start"
+else
+  echo "FAIL 26 run as the workload's user lost UNKNOWN_TABLE"; failed=$((failed + 1))
+fi
+
+# 12 must count app.copy as a target and not app.src, the table INSERT ... SELECT read.
+targets="$("$CH" client --port "$TCP" --user sizing_reader --password "$PASS" -q "$(cat "$ROOT/queries/advisor/12_insert_shape.sql")" --format TSV | cut -f1)"
+if printf '%s\n' "$targets" | grep -qx 'app.copy' && ! printf '%s\n' "$targets" | grep -qx 'app.src'; then
+  echo "ok   12 counts the INSERT ... SELECT target and not its source"
+else
+  echo "FAIL 12 insert targets: $(printf '%s' "$targets" | tr '\n' ' ')"; failed=$((failed + 1))
+fi
+
+# 11 must not count a column named final as FINAL.
+final_rows="$("$CH" client --port "$TCP" --user sizing_reader --password "$PASS" -q "$(cat "$ROOT/queries/advisor/11_query_efficiency.sql")" --format TSVWithNames)"
+if printf '%s\n' "$final_rows" | awk -F'\t' 'NR == 1 {for (i = 1; i <= NF; i++) if ($i == "final_executions") c = i; next} c && $c > 0 {bad=1} END {exit bad || !c}'; then
+  echo "ok   11 does not count a column named final as FINAL"
+else
+  echo "FAIL 11 counted FINAL in a query without FINAL"; failed=$((failed + 1))
 fi
 
 # The least-privilege user must not be able to read user tables.

@@ -1,6 +1,6 @@
 -- Load-test window, every 10 seconds and replica: CPU used and CPU waited by ClickHouse threads,
 -- against the replica's CPU limit, with running queries and tracked memory.
--- cpu_cores and cpu_wait_cores are averages over the 10 seconds (core-seconds / 10).
+-- cpu_cores and cpu_wait_cores are averages over the seconds logged in each bucket (core-seconds / rows; metric_log writes one row per second).
 -- cpu_cores can stay below cpu_limit_cores while threads queue for a CPU, so judge saturation from cpu_wait_ratio.
 -- container_cpu_cores is the CPU used by the whole container (CGroupUserTime + CGroupSystemTime, averaged over the 10 seconds);
 -- compare it with cpu_limit_cores. A large container_system_cores is kernel time, for example from switching between many threads.
@@ -23,6 +23,7 @@ SELECT
     m.queries_started,
     m.queries_delayed_for_cpu_slots,
     c.memory_used_ratio,
+    c.memory_used_ratio_without_page_cache,
     m.max_tcp_connections,
     m.max_http_connections,
     m.fs_cache_hit_rate,
@@ -34,8 +35,8 @@ FROM
     SELECT
         hostname AS replica,
         toStartOfInterval(event_time, INTERVAL 10 SECOND) AS t,
-        round(sum(ProfileEvent_OSCPUVirtualTimeMicroseconds) / 10e6, 2) AS cpu_cores,
-        round(sum(ProfileEvent_OSCPUWaitMicroseconds) / 10e6, 2) AS cpu_wait_cores,
+        round(sum(ProfileEvent_OSCPUVirtualTimeMicroseconds) / 1e6 / count(), 2) AS cpu_cores,
+        round(sum(ProfileEvent_OSCPUWaitMicroseconds) / 1e6 / count(), 2) AS cpu_wait_cores,
         round(sum(ProfileEvent_OSCPUWaitMicroseconds) / nullIf(sum(ProfileEvent_OSCPUVirtualTimeMicroseconds), 0), 2) AS cpu_wait_ratio,
         max(CurrentMetric_Query) AS max_running_queries,
         sum(ProfileEvent_Query) AS queries_started,
@@ -70,13 +71,14 @@ LEFT JOIN
         round(avgIf(value, metric = 'CGroupUserTime') + avgIf(value, metric = 'CGroupSystemTime'), 2) AS container_cpu_cores,
         round(avgIf(value, metric = 'CGroupSystemTime'), 2) AS container_system_cores,
         maxIf(value, metric = 'MaxPartCountForPartition') AS max_parts_in_partition,
-        round(avgIf(value, metric = 'CGroupMemoryUsedWithoutPageCache') / nullIf(maxIf(value, metric = 'CGroupMemoryTotal'), 0), 3) AS memory_used_ratio
+        round(avgIf(value, metric = 'CGroupMemoryUsed') / nullIf(maxIf(value, metric = 'CGroupMemoryTotal'), 0), 3) AS memory_used_ratio,
+        round(avgIf(value, metric = 'CGroupMemoryUsedWithoutPageCache') / nullIf(maxIf(value, metric = 'CGroupMemoryTotal'), 0), 3) AS memory_used_ratio_without_page_cache
     FROM clusterAllReplicas('default', merge('system', '^asynchronous_metric_log'))
-    WHERE metric IN ('CGroupUserTime', 'CGroupSystemTime', 'MaxPartCountForPartition', 'CGroupMemoryUsedWithoutPageCache', 'CGroupMemoryTotal')
+    WHERE metric IN ('CGroupUserTime', 'CGroupSystemTime', 'MaxPartCountForPartition', 'CGroupMemoryUsed', 'CGroupMemoryUsedWithoutPageCache', 'CGroupMemoryTotal')
       AND event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) AND toDate(now() /*window_end*/)
       AND event_time >= now() - INTERVAL 1 HOUR /*window_start*/
       AND event_time < now() /*window_end*/
     GROUP BY replica, t
 ) AS c ON m.replica = c.replica AND m.t = c.t
 ORDER BY m.t, m.replica
-SETTINGS skip_unavailable_shards = 1
+SETTINGS skip_unavailable_shards = 1, join_use_nulls = 1

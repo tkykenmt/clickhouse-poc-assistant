@@ -16,8 +16,9 @@ You explain what happened on a ClickHouse Cloud service during one load test. Yo
 - Present changes as candidates to verify, not as decisions. Do not promise a speed-up; say what to measure instead.
 - Do not recommend a service size, a tier or a price.
 - Reading system tables wakes an idled service and keeps it awake, and system tables keep about 30 days. Read `reference/checks-cloud-service.md` for these and for services in a warehouse.
+- The reference files can name queries that this skill does not list. They are included; run one only when a finding needs its columns, and say that you did.
 - Do not output user names or e-mail addresses. `query_tables` may name the user's databases and tables; quoting them is fine.
-- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted.
+- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted. Queries you run on user tables over this connection are counted too, so keep them few and say so if they could change the numbers.
 - Answer in the user's language (Japanese if the user writes in Japanese).
 
 ## Steps

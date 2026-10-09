@@ -4,9 +4,9 @@ Each check names the columns it reads, the rule, and the public source of the ru
 
 ## How much did each query read for what it returned?
 
-- **Columns**: `avg_read_rows`, `avg_result_rows`, `avg_selected_parts`, `avg_selected_marks`, `marks_read_ratio` (`queries/loadtest/30_window_query_breakdown.sql`, `queries/advisor/11_query_efficiency.sql`).
-- **Rule**: the primary index selects whole granules of `index_granularity` rows (8192 by default) in each part. A low `marks_read_ratio` does not by itself mean a query reads little. If marks are about equal to parts and read rows are far above result rows, each part contributes about one granule and the rows read follow the number of parts. Candidates are fewer parts or a smaller `index_granularity`; the server rejects changing `index_granularity` on an existing table (`READONLY_SETTING`), so a smaller value needs a new table.
-- **Source**: https://clickhouse.com/docs/guides/clickhouse/data-modelling/sparse-primary-indexes , https://clickhouse.com/docs/reference/settings/merge-tree-settings/index-granularity
+- **Columns**: `avg_read_rows`, `avg_result_rows`, `avg_selected_parts`, `avg_selected_marks`, `marks_read_ratio` (`queries/loadtest/30_window_query_breakdown.sql`); `avg_read_rows`, `avg_result_rows`, `avg_selected_parts`, `avg_selected_marks`, `marks_read_ratio` (`queries/advisor/11_query_efficiency.sql`).
+- **Rule**: the primary index selects whole granules of `index_granularity` rows (8192 by default) in each part. A low `marks_read_ratio` does not by itself mean a query reads little. If marks are about equal to parts and read rows are far above result rows, each part contributes about one granule and the rows read follow the number of parts. Candidates are fewer parts or a smaller `index_granularity`. In the ClickHouse source, open-source MergeTree rejects changing `index_granularity` on an existing table (`READONLY_SETTING`), while SharedMergeTree in ClickHouse Cloud accepts `ALTER TABLE ... MODIFY SETTING index_granularity = ...` because each part keeps the granularity it was written with. The new value applies to parts written after the change, so existing data keeps the old granularity until it is rewritten; test the change on a copy and compare `marks` and `read_rows` before advising it.
+- **Source**: https://clickhouse.com/docs/guides/clickhouse/data-modelling/sparse-primary-indexes , https://clickhouse.com/docs/reference/settings/merge-tree-settings/index-granularity , ClickHouse source: https://github.com/ClickHouse/ClickHouse/blob/master/src/Storages/MergeTree/MergeTreeSettings.cpp (`isReadonlySetting`, `isSMTReadonlySetting`)
 
 ## Was the cache cold?
 
@@ -29,7 +29,7 @@ Each check names the columns it reads, the rule, and the public source of the ru
 ## Does FINAL pay for unmerged parts?
 
 - **Columns**: `final_executions` (`11`), `max_parts_in_partition` of the same table (`queries/advisor/10_table_layout.sql`).
-- **Rule**: `FINAL` merges data at query time, so its cost depends on the parts that are not yet merged.
+- **Rule**: `FINAL` merges data at query time, so its cost depends on the parts that are not yet merged. `final_executions` matches `FROM` or `JOIN` followed by a table and `FINAL` in the query text, so a column or alias named `final` can also match; confirm with `sample_query`.
 - **Source**: https://clickhouse.com/docs/reference/statements/select/from#final-modifier
 
 ## Does the query read columns it does not need?
@@ -63,7 +63,7 @@ Each check names the columns it reads, the rule, and the public source of the ru
 ## Did a JOIN spill?
 
 - **Columns**: `spilled_join_executions`, `max_memory_bytes` (`11`).
-- **Rule**: a hash join builds the right-hand side in memory; when it does not fit, a spilling algorithm is used and the join slows down. Put the smaller table on the right, or choose the join algorithm for the sizes involved.
+- **Rule**: a hash join builds the right-hand side in memory; when it does not fit, a spilling algorithm is used and the join slows down. Since 24.12 the planner puts the smaller table of a two-table join on the right by itself (since 25.9 also for three or more tables), so first check the join order in `EXPLAIN`; otherwise choose the join algorithm for the sizes involved.
 - **Source**: https://clickhouse.com/docs/concepts/features/operations/select/joining-tables#choosing-a-join-algorithm
 
 ## Do skipping indexes pay for themselves?
@@ -75,5 +75,5 @@ Each check names the columns it reads, the rule, and the public source of the ru
 ## Do queries rely on the old analyzer?
 
 - **Columns**: `old_analyzer_executions` (`11`).
-- **Rule**: ClickHouse Cloud is moving every service to the new analyzer, and from 26.10 it is the only query analysis; patterns that turn it off need to be fixed.
+- **Rule**: ClickHouse Cloud is moving every service to the new analyzer, and since 26.9 it is mandatory (setting `enable_analyzer = 0` is rejected); patterns that turn it off need to be fixed before the service moves to 26.9.
 - **Source**: https://clickhouse.com/docs/guides/clickhouse/performance-and-monitoring/analyzer#cloud-migration

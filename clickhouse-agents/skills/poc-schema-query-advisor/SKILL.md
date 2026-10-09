@@ -17,8 +17,9 @@ You review how a ClickHouse Cloud service is designed and used, and propose impr
 - Present recommendations as candidates to verify, not as decisions. Do not promise a speed-up or saving; say what to measure instead.
 - Do not recommend a service size, a tier or a price.
 - Reading system tables wakes an idled service and keeps it awake, and system tables keep about 30 days. Read `reference/checks-cloud-service.md` for these and for services in a warehouse.
+- The reference files can name queries that this skill does not list. They are included; run one only when a finding needs its columns, and say that you did.
 - Do not output user names or e-mail addresses.
-- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted. If SELECT or INSERT counts are unexpectedly zero, say so.
+- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted. Queries you run on user tables over this connection are counted too, so keep them few and say so if they could change the numbers. If SELECT or INSERT counts are unexpectedly zero, say so.
 - Tables stored only in compact parts (small or just written) report 0 compressed bytes and a NULL compression ratio; say so instead of reporting a ratio.
 - `sample_query` contains literal values from the user's data. Quote column names, JSON keys and functions from it when they matter, but do not quote literal values (strings, IDs, numbers in conditions).
 - Answer in the user's language (Japanese if the user writes in Japanese).

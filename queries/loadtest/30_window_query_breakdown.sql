@@ -29,6 +29,7 @@ SELECT
     sum(ProfileEvents['RejectedInserts']) AS rejected_inserts,
     round(avg(ProfileEvents['SelectedParts']), 1) AS avg_selected_parts,
     round(avg(ProfileEvents['SelectedMarks']), 1) AS avg_selected_marks,
+    round(avg(ProfileEvents['SelectedMarks']) / nullIf(avg(ProfileEvents['SelectedMarksTotal']), 0), 3) AS marks_read_ratio,
     round(avg(read_rows)) AS avg_read_rows,
     round(avg(result_rows), 1) AS avg_result_rows,
     round(avg(peak_threads_usage), 1) AS avg_peak_threads,
@@ -36,8 +37,8 @@ SELECT
 FROM clusterAllReplicas('default', merge('system', '^query_log'))
 WHERE type IN ('QueryFinish', 'ExceptionWhileProcessing')
   AND is_initial_query
-  AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay
-           AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
+  AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay (failures before start have no tables and stay)
+           AND notEmpty(tables) AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
                            OR t IN ('_table_function.clusterAllReplicas', '_table_function.merge'), tables))
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
   AND query_kind IN ('Select', 'Insert')

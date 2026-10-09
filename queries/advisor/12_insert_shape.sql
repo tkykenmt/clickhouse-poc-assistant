@@ -19,7 +19,10 @@ SELECT
 FROM
 (
     SELECT
-        arrayJoin(tables) AS target_table,
+        -- Only tables named before any SELECT are targets: INSERT ... SELECT also lists the tables it reads.
+        arrayJoin(arrayFilter(t -> positionCaseInsensitive(
+            substring(query, 1, if(positionCaseInsensitive(query, 'SELECT') > 0, positionCaseInsensitive(query, 'SELECT'), length(query))),
+            splitByChar('.', t)[-1]) > 0, tables)) AS target_table,
         count() AS inserts,
         round(count() / greatest(dateDiff('second', min(event_time), max(event_time)), 1), 3) AS inserts_per_second,
         countIf(Settings['async_insert'] = '1') AS async_inserts,
@@ -31,8 +34,8 @@ FROM
     FROM clusterAllReplicas('default', merge('system', '^query_log'))
     WHERE type = 'QueryFinish'
       AND is_initial_query
-      AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay
-               AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
+      AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay (failures before start have no tables and stay)
+               AND notEmpty(tables) AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
                                OR t IN ('_table_function.clusterAllReplicas', '_table_function.merge'), tables))
       AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
       AND query_kind = 'Insert'
@@ -53,6 +56,9 @@ LEFT JOIN
         SELECT concat(database, '.', table) AS target_table, query_id, sum(rows) AS rows, count() AS parts
         FROM clusterAllReplicas('default', merge('system', '^part_log'))
         WHERE event_type = 'NewPart'
+          AND error = 0                                -- deduplicated retries are logged with an error
+          AND query_id != ''                           -- background writers such as Buffer tables
+          AND NOT startsWith(partition_id, 'patch-')   -- patch parts of lightweight updates
           AND event_date >= today() - 30 /*days*/
           AND database NOT IN ('system', 'INFORMATION_SCHEMA', 'information_schema')
         GROUP BY target_table, query_id
@@ -61,4 +67,4 @@ LEFT JOIN
 ) AS p ON q.target_table = p.target_table
 ORDER BY inserts DESC
 LIMIT 50
-SETTINGS skip_unavailable_shards = 1
+SETTINGS skip_unavailable_shards = 1, join_use_nulls = 1

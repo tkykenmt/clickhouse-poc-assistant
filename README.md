@@ -23,7 +23,8 @@ Two public skills from [ClickHouse/agent-skills](https://github.com/ClickHouse/a
 | `queries/` | Sizing queries (01–08). The single source for every tool below. |
 | `queries/optional/` | A query that includes sample query text. Not run by default. |
 | `queries/advisor/` | Queries for the advisor (10–12). |
-| `queries/progress/` | Queries for the daily note (20–25; 22 onwards pick up changes). |
+| `queries/progress/` | Queries for the daily note (20–28; 22 onwards pick up changes, 26–28 cover errors, background work and async insert flushes). |
+| `queries/loadtest/` | Queries for one load-test window (30–31). |
 | `reference/poc-criteria.md` | PoC evaluation areas and how to measure each, with public sources only (ClickHouse docs and customer stories on clickhouse.com/blog). |
 | `reference/checks-*.md` | Checks for a running service, one file per area (CPU and concurrency, reads and queries, inserts and parts, errors and background work, autoscaling and test design, the Cloud service). Each check names the columns it reads, the rule and its public source. The bundled design rules (`clickhouse-best-practices`) cover how to build tables and inserts; these cover what to look at once a workload runs. |
 | `clickhouse-agents/skills/` | The skills (`SKILL.md` per skill). |
@@ -53,7 +54,7 @@ Each skill zip contains its `SKILL.md`, the license, and exactly the files the s
 
 - Read system tables only.
 - On ClickHouse Cloud, logs are per replica: read them with `clusterAllReplicas('default', merge('system', '^<table>'))`.
-- From `query_log`, exclude this connection's own reads of system tables (queries by `currentUser()` whose `tables` are only `system.*`, `information_schema.*`, `clusterAllReplicas` and `merge`) and ClickHouse Cloud's own monitoring users (names ending in `-internal`). Without this, monitoring queries dominated the SELECT counts in testing. Other queries of the connected user are kept, so a workload that runs as the same database user is still counted.
+- From `query_log`, exclude this connection's own reads of system tables (queries by `currentUser()` whose `tables` are not empty and are only `system.*`, `information_schema.*`, `clusterAllReplicas` and `merge`; queries that failed before they started have no `tables` and are kept) and ClickHouse Cloud's own monitoring users (names ending in `-internal`). Without this, monitoring queries dominated the SELECT counts in testing. Other queries of the connected user are kept, so a workload that runs as the same database user is still counted; queries that the agent itself runs on user tables over that connection are counted too.
 - Filter on `event_date` as well as `event_time` so only the needed partitions are read.
 - Do not output user names; output counts. Output `normalized_query_hash` as a string (`toString`) so no digits are lost.
 - Write the period as `30 /*days*/`, and a load-test window as `now() - INTERVAL 1 HOUR /*window_start*/` and `now() /*window_end*/`; tools replace these markers.

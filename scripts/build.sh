@@ -23,9 +23,9 @@ for dir in "$ROOT"/clickhouse-agents/skills/*/; do
   cp "$dir/SKILL.md" "$ROOT/LICENSE" "$out/"
   # The agent cannot list folders, so SKILL.md names every file; ship exactly those.
   refs="$(grep -oE '(queries/[A-Za-z0-9_/]+\.sql|reference/[A-Za-z0-9_-]+\.md)' "$dir/SKILL.md" | sort -u)"
-  # Reference files can point to other reference files; ship those too (until nothing new is found).
+  # Reference files can point to other reference files and to queries; ship those too (until nothing new is found).
   while :; do
-    more="$(for r in $refs; do case "$r" in reference/*) if [ -f "$ROOT/$r" ]; then grep -oE 'reference/[A-Za-z0-9_-]+\.md' "$ROOT/$r" || true; fi;; esac; done | sort -u)"
+    more="$(for r in $refs; do case "$r" in reference/*) if [ -f "$ROOT/$r" ]; then grep -oE '(queries/[A-Za-z0-9_/]+\.sql|reference/[A-Za-z0-9_-]+\.md)' "$ROOT/$r" || true; fi;; esac; done | sort -u)"
     all="$(printf '%s\n%s\n' "$refs" "$more" | grep -v '^$' | sort -u)"
     [ "$all" = "$refs" ] && break
     refs="$all"

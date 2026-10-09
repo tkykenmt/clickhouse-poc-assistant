@@ -22,8 +22,8 @@ SELECT
 FROM clusterAllReplicas('default', merge('system', '^query_log'))
 WHERE type IN ('QueryFinish', 'ExceptionWhileProcessing')
   AND is_initial_query
-  AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay
-           AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
+  AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay (failures before start have no tables and stay)
+           AND notEmpty(tables) AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
                            OR t IN ('_table_function.clusterAllReplicas', '_table_function.merge'), tables))
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
   AND event_date >= today() - 30 /*days*/

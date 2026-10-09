@@ -22,7 +22,7 @@ SELECT
     round(avg(ProfileEvents['FilteringMarksWithSecondaryKeysMicroseconds']) / 1e3, 1) AS avg_skip_index_ms,
     round(countIf(query_cache_usage = 'Read') / count(), 3) AS query_cache_read_share,
     max(has(used_aggregate_functions, 'uniqExact')) AS uses_uniq_exact,
-    countIf(Settings['final'] = '1' OR positionCaseInsensitive(query, ' FINAL') > 0) AS final_executions,
+    countIf(Settings['final'] = '1' OR match(query, '(?i)\\b(FROM|JOIN)\\s+[^\\s()]+(\\s+(AS\\s+)?\\w+)?\\s+FINAL\\b')) AS final_executions,
     round(avg(length(columns))) AS avg_columns_read,
     round(avg(read_bytes)) AS avg_read_bytes,
     round(avg(ProfileEvents['UserTimeMicroseconds'] + ProfileEvents['SystemTimeMicroseconds']) / 1e3, 1) AS avg_cpu_ms,
@@ -30,8 +30,8 @@ SELECT
 FROM clusterAllReplicas('default', merge('system', '^query_log'))
 WHERE type = 'QueryFinish'
   AND is_initial_query
-  AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay
-           AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
+  AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay (failures before start have no tables and stay)
+           AND notEmpty(tables) AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
                            OR t IN ('_table_function.clusterAllReplicas', '_table_function.merge'), tables))
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
   AND query_kind = 'Select'

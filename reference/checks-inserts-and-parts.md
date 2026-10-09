@@ -4,7 +4,7 @@ Each check names the columns it reads, the rule, and the public source of the ru
 
 ## Were inserts slowed or rejected on purpose?
 
-- **Columns**: `avg_delayed_insert_ms`, `rejected_inserts` (`queries/loadtest/30_window_query_breakdown.sql`, `queries/advisor/12_insert_shape.sql`), `max_parts_in_partition` (`queries/loadtest/31_window_cpu_10s.sql`, `queries/advisor/10_table_layout.sql`).
+- **Columns**: `avg_delayed_insert_ms`, `rejected_inserts` (`queries/loadtest/30_window_query_breakdown.sql`), `avg_delayed_insert_ms` (`queries/advisor/12_insert_shape.sql`), `TOO_MANY_PARTS` in `queries/progress/26_errors_by_code.sql` (a rejected insert fails with this code), `max_parts_in_partition` (`queries/loadtest/31_window_cpu_10s.sql`, `queries/advisor/10_table_layout.sql`).
 - **Rule**: a delay or rejection above 0 means the server slowed or refused inserts because a partition had too many active parts. Compare the part counts with the service's own `parts_to_delay_insert` and `parts_to_throw_insert`, read with `SELECT name, value FROM system.merge_tree_settings WHERE name IN ('parts_to_delay_insert', 'parts_to_throw_insert')`; do not quote a default value.
 - **Source**: https://clickhouse.com/docs/reference/system-tables/events , https://clickhouse.com/docs/reference/settings/merge-tree-settings/parts-to
 
