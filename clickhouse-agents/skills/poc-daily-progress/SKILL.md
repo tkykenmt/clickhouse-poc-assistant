@@ -23,8 +23,9 @@ If the file or either required section is missing, say which section is missing,
 
 - Every number comes from a query result in this conversation. Show the SQL you wrote for a criterion.
 - A `nan` or NULL in a 7-day column means there is no baseline (nothing ran in that window); say "no baseline" instead of comparing.
-- The queries exclude the connected user's own queries (`user != currentUser()`). If the PoC workload runs as the same database user as this connection, its queries are excluded too; if SELECT or INSERT counts are unexpectedly zero, say so and suggest running the workload under its own database user.
+- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted. If SELECT or INSERT counts are unexpectedly zero, say so.
 - Do not recommend a service size, a tier or a price. Do not output user names or e-mail addresses.
+- Reading system tables wakes an idled service and keeps it awake, and system tables keep about 30 days. Read `reference/checks-cloud-service.md` for these and for services in a warehouse.
 - When you state how ClickHouse behaves (not a number from a query), confirm it with the documentation search tool and attach the URL.
 - Answer in the user's language (Japanese if the user writes in Japanese). Keep the note under 40 lines.
 
@@ -37,6 +38,7 @@ If the file or either required section is missing, say which section is missing,
    - `queries/progress/23_changed_query_patterns.sql`
    - `queries/progress/24_table_changes.sql`
    - `queries/progress/25_insert_shape_change.sql`
+   - `queries/progress/26_errors_by_code.sql`, `queries/progress/27_background_health.sql` and `queries/progress/28_async_insert_failures.sql`, each with `30 /*days*/` replaced by `1`
 
    If a query fails because settings cannot be changed, remove the final `SETTINGS skip_unavailable_shards = 1` line and run it again.
 2. For each success criterion, write one read-only query against system tables that measures it for the last 24 hours and for the 7 days before, run it, and compare both with the pass threshold. If a criterion cannot be measured from system tables, say so.
@@ -45,6 +47,9 @@ If the file or either required section is missing, say which section is missing,
    - patterns from `23` whose `p99_ratio` or `read_rows_ratio` is 2 or more with at least 10 executions in the last 24 hours (this is a reporting threshold for change, not a ClickHouse recommendation)
    - tables from `24` that were created or altered
    - tables from `25` whose `p50_rows_per_insert_24h` fell to half or less of the 7-day value, and tables from `21` whose `max_parts_in_partition` stands out
+   - tables from `25` with `async_inserts_without_wait_24h` above 0: with `wait_for_async_insert = 0` the client is not told when a flush fails (https://clickhouse.com/docs/concepts/features/operations/insert/asyncinserts#choosing-a-return-mode)
+   - error codes from `26`, and stuck or failing background work from `27`, judged with `reference/checks-errors-and-background.md`
+   - failed async insert flushes from `28`, judged with "Did async insert flushes fail?" in `reference/checks-inserts-and-parts.md`
    For each of these, check the matching rule in the `clickhouse-best-practices` skill (and `clickhouse-architecture-advisor` for pattern choices) and the documentation search tool. Keep at most three findings that a rule or a documentation page supports; drop the rest. `sample_query` contains literal values: quote column names, JSON keys and functions, not literal values.
 4. Write the note:
    - **Last 24 hours**: ingest and query volume against the previous 7-day average, p99 latency, errors, the table with the most parts in one partition. Mention only what changed notably.

@@ -8,7 +8,7 @@ ClickHouse Agents（ベータ）を使える ClickHouse Cloud の組織と、評
 ## 手順の一覧
 
 1. サービスで Remote MCP を有効にする（[1](#1-サービスで-remote-mcp-を有効にする)）
-2. スキルの zip を 5 つダウンロードする（[2](#2-スキルをダウンロードする)）
+2. スキルの zip をダウンロードする（[2](#2-スキルをダウンロードする)）
 3. zip を 1 つずつスキルとしてアップロードする（[3](#3-スキルをアップロードする)）
 4. エージェントを作り、指示文を貼る（[4](#4-エージェントを作る)）
 5. エージェントと PoC の計画を作り、エージェントに添付する（[5](#5-poc-の計画を作って添付する)）
@@ -33,10 +33,11 @@ Remote MCP はサービスごとに有効にします。
 | `poc-plan-builder` | [poc-plan-builder-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-plan-builder-skill.zip) |
 | `poc-sizing-stats` | [poc-sizing-stats-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-sizing-stats-skill.zip) |
 | `poc-schema-query-advisor` | [poc-schema-query-advisor-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-schema-query-advisor-skill.zip) |
+| `poc-load-test-review` | [poc-load-test-review-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-load-test-review-skill.zip) |
 | `poc-daily-progress` | [poc-daily-progress-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-daily-progress-skill.zip) |
 | `clickhouse-architecture-advisor`（公開スキル、変更なし） | [clickhouse-architecture-advisor-skill.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/clickhouse-architecture-advisor-skill.zip) |
 
-5 つまとめた [poc-assistant-skills.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-assistant-skills.zip) もあります（展開すると 5 つの zip が出てきます）。GitHub CLI なら次の 1 行です。
+全部まとめた [poc-assistant-skills.zip](https://github.com/tkykenmt/clickhouse-poc-assistant/releases/latest/download/poc-assistant-skills.zip) もあります（展開すると上の表の zip が出てきます）。GitHub CLI なら次の 1 行です。
 
 ```bash
 gh release download -R tkykenmt/clickhouse-poc-assistant -p '*-skill.zip'
@@ -51,7 +52,7 @@ gh release download -R tkykenmt/clickhouse-poc-assistant -p '*-skill.zip'
 1. Cloud コンソールの左のメニューから **ClickHouse agents** を開きます。
 2. ClickHouse Agents の左のバーで **スキル** を開きます。
 3. zip ごとに、**スキルを作成**（＋）→ **スキルをアップロードする** → zip を選びます。1 回のアップロードで入るスキルは 1 つです。
-4. 5 つのスキルが一覧に並んだことを確かめます。
+4. 上の表のスキルがすべて一覧に並んだことを確かめます。
 
 参考：https://clickhouse.com/docs/products/cloud/features/ai-ml/agents/builder/skills
 
@@ -66,18 +67,18 @@ gh release download -R tkykenmt/clickhouse-poc-assistant -p '*-skill.zip'
 | モデル | プロバイダー **Claude**、モデル `claude-sonnet-5-5`（一覧にあるほかのモデルでも動くはずですが、検証したのはこのモデルです） |
 | 指示文 | 下の英語の文 |
 | ツール | **ツールを追加** → **ClickHouse**（MCP サーバー）と **アーティファクト** |
-| スキル | **Selected** にして、`poc-*` の 4 つ、`clickhouse-best-practices`、`clickhouse-architecture-advisor` を追加 |
+| スキル | **Selected** にして、`poc-*` のスキルすべて、`clickhouse-best-practices`、`clickhouse-architecture-advisor` を追加 |
 
 指示文には、次の英語の文を貼ります。エージェントはユーザーの言葉で答えます。
 
 ```text
-You are an assistant that helps run a ClickHouse Cloud PoC. Pick the skill for each request: poc-plan-builder to plan the PoC and its success criteria, poc-sizing-stats for sizing statistics, poc-schema-query-advisor to review table design and queries (judge with clickhouse-best-practices and clickhouse-architecture-advisor), and poc-daily-progress for progress, the daily note and next actions. The PoC target and success criteria are in the PoC plan file (a file starting with poc-plan) in the file context. For every request, read system tables only and never select rows from the user's own tables. Write numbers only from query results; do not guess. When you state how ClickHouse behaves, confirm it with documentation search and attach the URL. Do not recommend a service size, a tier or a price. Do not output user names or e-mail addresses. Present improvements as candidates to verify, not as decisions. Answer in the user's language.
+You are an assistant that helps run a ClickHouse Cloud PoC. Pick the skill for each request: poc-plan-builder to plan the PoC and its success criteria, poc-sizing-stats for sizing statistics, poc-schema-query-advisor to review table design and queries (judge with clickhouse-best-practices and clickhouse-architecture-advisor), poc-load-test-review to explain one load test (latency, CPU, reads, autoscaling), and poc-daily-progress for progress, the daily note and next actions. The PoC target and success criteria are in the PoC plan file (a file starting with poc-plan) in the file context. For every request, read system tables only and never select rows from the user's own tables. Write numbers only from query results; do not guess. When you state how ClickHouse behaves, confirm it with documentation search and attach the URL. Do not recommend a service size, a tier or a price. Do not output user names or e-mail addresses. Present improvements as candidates to verify, not as decisions. Answer in the user's language.
 ```
 
 <details>
 <summary>指示文の日本語訳（参考。貼るのは上の英語の文）</summary>
 
-あなたは ClickHouse Cloud の PoC を手伝うアシスタントです。依頼に応じてスキルを使い分けます。PoC の計画と成功基準づくりは poc-plan-builder、サイジング用の統計は poc-sizing-stats、テーブル設計とクエリの見直しは poc-schema-query-advisor（判断は clickhouse-best-practices と clickhouse-architecture-advisor に従う）、進捗と日次のまとめとネクストアクションは poc-daily-progress です。PoC の対象と成功基準は、ファイルのコンテキストにある PoC 計画（poc-plan で始まるファイル）に書いてあります。どの依頼でも、読むのは system テーブルだけで、ユーザーのテーブルの行は読みません。数字はクエリの結果だけから書き、推測しません。ClickHouse の振る舞いを述べるときは、ドキュメント検索で確かめて URL を付けます。サービスの規模、ティア、金額の推奨はしません。ユーザー名やメールアドレスは出しません。改善の案は、決定ではなく確かめる候補として出します。ユーザーの言葉で答えます。
+あなたは ClickHouse Cloud の PoC を手伝うアシスタントです。依頼に応じてスキルを使い分けます。PoC の計画と成功基準づくりは poc-plan-builder、サイジング用の統計は poc-sizing-stats、テーブル設計とクエリの見直しは poc-schema-query-advisor（判断は clickhouse-best-practices と clickhouse-architecture-advisor に従う）、1 回の負荷試験の振り返り（レイテンシ、CPU、読み取り、オートスケール）は poc-load-test-review、進捗と日次のまとめとネクストアクションは poc-daily-progress です。PoC の対象と成功基準は、ファイルのコンテキストにある PoC 計画（poc-plan で始まるファイル）に書いてあります。どの依頼でも、読むのは system テーブルだけで、ユーザーのテーブルの行は読みません。数字はクエリの結果だけから書き、推測しません。ClickHouse の振る舞いを述べるときは、ドキュメント検索で確かめて URL を付けます。サービスの規模、ティア、金額の推奨はしません。ユーザー名やメールアドレスは出しません。改善の案は、決定ではなく確かめる候補として出します。ユーザーの言葉で答えます。
 
 </details>
 
@@ -85,7 +86,7 @@ You are an assistant that helps run a ClickHouse Cloud PoC. Pick the skill for e
 
 初めて ClickHouse のツールを使うときに、接続を求められます。求められない場合は、左のバーの **MCP設定** で **ClickHouse** を探し、**接続** を押します。エージェントから見えるのは、Cloud のユーザーがアクセスできる組織とサービスだけです。
 
-クエリは、接続している DB ユーザー自身のクエリを除きます。PoC の負荷を、エージェントや書き出しと同じ DB ユーザーで実行すると、その負荷も除かれます。負荷は専用の DB ユーザーで実行してください。
+クエリは、この接続自身による system テーブルの読み取りを除きますが、同じ DB ユーザーのほかのクエリは残します。PoC の負荷をエージェントや書き出しと同じ DB ユーザーで流しても、負荷は数えられます。
 
 参考：https://clickhouse.com/docs/products/cloud/features/ai-ml/agents/quickstart 、https://clickhouse.com/docs/products/cloud/features/ai-ml/agents/builder/mcp-servers
 
@@ -104,6 +105,7 @@ You are an assistant that helps run a ClickHouse Cloud PoC. Pick the skill for e
 |---|---|
 | 「直近 7 日のサイジング用の統計を出してください」 | `poc-sizing-stats` |
 | 「PoC 計画のサービスのテーブル設計とクエリを、直近 7 日の記録で見直してください」 | `poc-schema-query-advisor` |
+| 「今日の 10:00〜10:20（JST）の負荷試験を振り返ってください。Locust で利用者 10、25、50、100 人の段階です」 | `poc-load-test-review` |
 | 「poc-daily-progress で今日の PoC のまとめを書いてください」 | `poc-daily-progress` |
 
 日次のまとめは毎朝、総点検は週に 1 回を目安にします。

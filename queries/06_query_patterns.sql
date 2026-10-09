@@ -3,7 +3,7 @@
 SELECT
     toString(normalized_query_hash) AS query_hash,
     query_kind,
-    arrayStringConcat(any(tables), ' ') AS tables,
+    arrayStringConcat(any(tables), ' ') AS query_tables,
     uniqExact(user) AS users,
     count() AS executions,
     countIf(type = 'ExceptionWhileProcessing') AS errors,
@@ -21,7 +21,9 @@ SELECT
 FROM clusterAllReplicas('default', merge('system', '^query_log'))
 WHERE type IN ('QueryFinish', 'ExceptionWhileProcessing')
   AND is_initial_query
-  AND user != currentUser()
+  AND NOT (user = currentUser()  -- this connection's own reads of system tables; other queries of the same user stay
+           AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
+                           OR t IN ('_table_function.clusterAllReplicas', '_table_function.merge'), tables))
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
   AND event_date >= today() - 30 /*days*/
 GROUP BY query_hash, query_kind

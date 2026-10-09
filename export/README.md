@@ -23,7 +23,7 @@ Query text is not exported by default.
 | `optional/09_query_patterns_with_text` (optional) | `06` plus one sample query text per pattern (first 300 characters) | what the queries do |
 
 Query patterns are grouped by `normalized_query_hash`, so queries that differ only in literal values fall into the same pattern.
-Queries that ClickHouse Cloud runs for its own monitoring (database users whose names end in `-internal`) are excluded, and so are the export user's own queries.
+Queries that ClickHouse Cloud runs for its own monitoring (database users whose names end in `-internal`) are excluded, and so are the export user's own reads of system tables.
 User names are not exported; only the number of users per pattern is.
 
 The sample text in `09` includes literal values such as those in WHERE clauses.
@@ -52,7 +52,7 @@ GRANT REMOTE ON *.* TO sizing_reader;
 GRANT CREATE TEMPORARY TABLE ON *.* TO sizing_reader;
 ```
 
-Use this user only for the export. Its own queries are left out of the results, so if your workload ran as the same user, the workload would be left out too.
+Use this user only for the export. Its own reads of system tables are left out of the results; other queries of the same user are kept.
 
 If a `SHOW` grant is missing, your tables silently drop out of the results without an error.
 Check that `02_tables.csv` lists the tables you expect.
