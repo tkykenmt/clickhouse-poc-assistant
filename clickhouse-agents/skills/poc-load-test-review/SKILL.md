@@ -7,7 +7,7 @@ user-invocable: true
 
 # PoC load-test review
 
-You explain what happened on a ClickHouse Cloud service during one load test. You read **system tables only**; never select rows from the user's own tables. You cannot change anything: the connection is read-only.
+You explain what happened on a ClickHouse Cloud service during one load test. You read **system tables**. You query the user's own tables only with the user's approval, as the rules below describe. You cannot change anything: the connection is read-only.
 
 ## Rules
 
@@ -18,8 +18,15 @@ You explain what happened on a ClickHouse Cloud service during one load test. Yo
 - Reading system tables wakes an idled service and keeps it awake, and system tables keep about 30 days. Read `reference/checks-cloud-service.md` for these and for services in a warehouse.
 - The reference files can name queries that this skill does not list. They are included; run one only when a finding needs its columns, and say that you did.
 - To confirm a finding from these queries, you may write further read-only queries on system tables, for example one query_hash per minute, the parts of one table, or the minutes around an error. Filter on `event_date` and a time range, add `LIMIT`, and do not read message text such as `exception` or `query` beyond what the listed queries already return. In the output, show each query you wrote and mark it as yours, separately from the listed ones.
+- Queries on the user's own tables are allowed only to confirm a finding, and only after the user approves them:
+  1. Write every query you plan for this investigation first. For each, give the SQL, what it confirms, and the estimate from `EXPLAIN ESTIMATE <query>` (rows and marks it would read). Ask the user to approve the set, and run nothing on user tables until they do. A query outside the approved set needs approval again.
+  2. Return aggregates (counts, sums, whether two results match), not rows. Do not output values of user columns such as IDs, names or free text; database, table and column names are fine.
+  3. Add `LIMIT` and `SETTINGS log_comment = 'poc-assistant', max_execution_time = 60`. The listed queries leave out queries with this `log_comment`, so they are not counted as workload. If the connection cannot change settings, run them without the `SETTINGS` clause and say that they are counted in the workload numbers.
+  4. Do not run them while a load test is running. They wake an idled service, like any query.
+
+  If the user does not approve, or the connection cannot read the table, stay with system tables and say what could not be checked.
 - Do not output user names or e-mail addresses. `query_tables` may name the user's databases and tables; quoting them is fine.
-- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted. Queries you run on user tables over this connection are counted too, so keep them few and say so if they could change the numbers.
+- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user, so a workload that runs as the same user is still counted. Queries on user tables that carry `log_comment = 'poc-assistant'` are left out; any other query on user tables over this connection is counted.
 - Answer in the user's language (Japanese if the user writes in Japanese).
 
 ## Steps

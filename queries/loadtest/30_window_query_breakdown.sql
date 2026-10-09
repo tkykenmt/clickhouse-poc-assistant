@@ -41,6 +41,7 @@ WHERE type IN ('QueryFinish', 'ExceptionWhileProcessing')
            AND notEmpty(tables) AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
                            OR t IN ('_table_function.clusterAllReplicas', '_table_function.merge'), tables))
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
+  AND log_comment != 'poc-assistant'  -- queries the assistant ran on user tables with the user's approval
   AND query_kind IN ('Select', 'Insert')
   AND event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) AND toDate(now() /*window_end*/)
   AND event_time >= now() - INTERVAL 1 HOUR /*window_start*/

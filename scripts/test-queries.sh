@@ -62,6 +62,8 @@ admin "SELECT * FROM app.missing" >/dev/null 2>&1 || true
 admin "CREATE TABLE app.src ENGINE = MergeTree ORDER BY tuple() AS SELECT number AS n FROM numbers(10)"
 admin "CREATE TABLE app.copy (n UInt64) ENGINE = MergeTree ORDER BY tuple()"
 admin "INSERT INTO app.copy SELECT n FROM app.src"
+# A query the assistant ran on a user table with its log_comment must not count as workload.
+admin "SELECT count() FROM app.src SETTINGS log_comment = 'poc-assistant' FORMAT Null"
 # A column named final must not count as FINAL.
 admin "SELECT v AS final_x FROM app.events WHERE user_id = 999999 FORMAT Null"
 admin "SYSTEM FLUSH LOGS"
@@ -90,6 +92,11 @@ elif printf '%s\n' "$same_user" | awk -F'\t' '$3 == "system.contributors" {found
   echo "FAIL 06 run as the workload's user kept its own system-table reads"; failed=$((failed + 1))
 else
   echo "ok   06 keeps the same user's workload and drops its own system-table reads"
+fi
+if printf '%s\n' "$same_user" | awk -F'\t' '$3 == "app.src" && $2 == "Select" {found=1} END {exit !found}'; then
+  echo "FAIL 06 counted the assistant's tagged query on a user table"; failed=$((failed + 1))
+else
+  echo "ok   06 leaves out the assistant's tagged queries on user tables"
 fi
 
 # Failures before start have no tables; read as the same user they must stay (26).

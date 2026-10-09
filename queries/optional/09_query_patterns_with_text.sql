@@ -26,6 +26,7 @@ WHERE type IN ('QueryFinish', 'ExceptionWhileProcessing')
            AND notEmpty(tables) AND arrayAll(t -> startsWith(t, 'system.') OR startsWith(lower(t), 'information_schema.')
                            OR t IN ('_table_function.clusterAllReplicas', '_table_function.merge'), tables))
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
+  AND log_comment != 'poc-assistant'  -- queries the assistant ran on user tables with the user's approval
   AND event_date >= today() - 30 /*days*/
 GROUP BY query_hash, query_kind
 ORDER BY total_cpu_seconds DESC

@@ -4,7 +4,7 @@
 
 ClickHouse Cloud の PoC（概念実証）を手伝うツールをまとめたリポジトリです。
 役割ごとにスキルを分け、[ClickHouse Agents](https://clickhouse.com/docs/products/cloud/features/ai-ml/agents) のエージェント「PoC アシスタント」が依頼に応じて使い分けます。
-どのツールも **system テーブルだけ** を読み、ユーザーのテーブルの行は読みません。
+どのツールも **system テーブル** を読みます。アドバイザー、負荷試験の振り返り、日次のまとめのスキルは、見つけたことを確かめるときだけ、ユーザーの了承を得てからユーザーのテーブルにクエリを流し、行そのものではなく集計を返します。サイジングのスキルと書き出しの一式は、ユーザーのテーブルを読みません。
 
 | スキル | 役割 |
 |---|---|
@@ -57,9 +57,9 @@ scripts/test-queries.sh         # PATH に clickhouse のバイナリが必要
 
 ## クエリの決まり
 
-- 読むのは system テーブルだけです。
+- 読むのは system テーブルだけです（スキルがユーザーの了承を得てユーザーのテーブルに流すクエリは、ここには置かず会話の中で書きます。そのクエリには `log_comment = 'poc-assistant'` を付け、ここにある `query_log` のクエリはすべてそれを除きます）。
 - ClickHouse Cloud ではログがレプリカごとにあるので、`clusterAllReplicas('default', merge('system', '^<table>'))` で読みます。
-- `query_log` からは、この接続自身による system テーブルの読み取り（`currentUser()` のクエリのうち、`tables` が空でなく、`system.*`、`information_schema.*`、`clusterAllReplicas`、`merge` だけのもの。開始前に失敗したクエリは `tables` が空なので残す）と、ClickHouse Cloud の監視用の DB ユーザー（名前が `-internal` で終わるもの）を除きます。除かないと、検証では SELECT の件数の大半が監視のクエリでした。接続している DB ユーザーのほかのクエリは残すので、負荷を同じ DB ユーザーで流しても数えられます。エージェント自身がその接続でユーザーのテーブルに流したクエリも数えられます。
+- `query_log` からは、この接続自身による system テーブルの読み取り（`currentUser()` のクエリのうち、`tables` が空でなく、`system.*`、`information_schema.*`、`clusterAllReplicas`、`merge` だけのもの。開始前に失敗したクエリは `tables` が空なので残す）と、ClickHouse Cloud の監視用の DB ユーザー（名前が `-internal` で終わるもの）を除きます。除かないと、検証では SELECT の件数の大半が監視のクエリでした。接続している DB ユーザーのほかのクエリは残すので、負荷を同じ DB ユーザーで流しても数えられます。エージェントが `log_comment = 'poc-assistant'` を付けてユーザーのテーブルに流したクエリは除き、それ以外にその接続でユーザーのテーブルに流したクエリは数えられます。
 - 必要なパーティションだけを読むよう、`event_time` に加えて `event_date` でも絞ります。
 - ユーザー名は出さず、数だけを出します。`normalized_query_hash` は桁が落ちないよう `toString` で文字列にします。
 - 期間は `30 /*days*/`、負荷試験の時間帯は `now() - INTERVAL 1 HOUR /*window_start*/` と `now() /*window_end*/` と書きます。ツールがこれらの印を置き換えます。
