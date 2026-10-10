@@ -1,6 +1,7 @@
 -- Load-test window, per minute and query pattern: where the time goes (CPU, waiting for CPU, I/O wait)
 -- and how much each query reads compared with what it returns. Ten busiest patterns per minute.
 -- Rows are also split by log_comment, so a load tool that tags each step (for example log_comment = 'step_c8') can be read per step.
+-- p50_ms and p99_ms count finished queries only; failed queries are in errors, so a run that fails fast does not look fast.
 -- Replace the two window markers with the test's start and end in UTC, for example
 -- toDateTime('2026-10-09 08:57:50', 'UTC') /*window_start*/.
 SELECT
@@ -12,8 +13,8 @@ SELECT
     count() AS executions,
     countIf(type = 'ExceptionWhileProcessing') AS errors,
     arrayStringConcat(topKIf(3)(errorCodeToName(exception_code), exception_code != 0), ' ') AS top_errors,
-    round(quantile(0.5)(query_duration_ms)) AS p50_ms,
-    round(quantile(0.99)(query_duration_ms)) AS p99_ms,
+    round(quantileIf(0.5)(query_duration_ms, type = 'QueryFinish')) AS p50_ms,
+    round(quantileIf(0.99)(query_duration_ms, type = 'QueryFinish')) AS p99_ms,
     round(avg(ProfileEvents['OSCPUVirtualTimeMicroseconds']) / 1e3, 1) AS avg_cpu_ms,
     round(avg(ProfileEvents['OSCPUWaitMicroseconds']) / 1e3, 1) AS avg_cpu_wait_ms,
     round(sum(ProfileEvents['OSCPUWaitMicroseconds']) / nullIf(sum(ProfileEvents['OSCPUVirtualTimeMicroseconds']), 0), 2) AS cpu_wait_ratio,

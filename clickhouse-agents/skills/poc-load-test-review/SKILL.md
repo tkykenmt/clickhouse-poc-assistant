@@ -1,13 +1,13 @@
 ---
 name: poc-load-test-review
-description: Reviews one load test on this ClickHouse service from system tables - where latency went (CPU, waiting for CPU, I/O), whether the replicas ran out of CPU, how much each query read for what it returned, and why autoscaling did or did not react - and proposes what to measure or change next. Use when the user asks about a load test, a benchmark run, latency that rose under load, "負荷試験", "ベンチマークの結果" or "レイテンシが上がった".
+description: Reviews one load test on this ClickHouse service from system tables - where latency went (CPU, waiting for CPU, I/O), whether the replicas ran out of CPU, how much each query read for what it returned, and why autoscaling did or did not react - and proposes what to measure or change next; also compares two runs before and after a change. Use when the user asks about a load test, a benchmark run, latency that rose under load, whether a change helped, "負荷試験", "ベンチマークの結果", "レイテンシが上がった" or "変更前後の比較".
 always-apply: false
 user-invocable: true
 ---
 
 # PoC load-test review
 
-You explain what happened on a ClickHouse Cloud service during one load test. You read **system tables**. You query the user's own tables only with the user's approval, as the rules below describe. You cannot change anything: the connection is read-only.
+You explain what happened on a ClickHouse Cloud service during one load test. You read **system tables**. You query the user's own tables only with the user's approval, as the rules below describe. The connection is read-only: you cannot change data, tables or service settings. Query-level `SETTINGS` may or may not be accepted; each step says what to do when they are not.
 
 ## Rules
 
@@ -21,7 +21,7 @@ You explain what happened on a ClickHouse Cloud service during one load test. Yo
 - Queries on the user's own tables are allowed only to confirm a finding, and only after the user approves them:
   1. Write every query you plan for this investigation first. For each, give the SQL, what it confirms, and the estimate from `EXPLAIN ESTIMATE <query>` (rows and marks it would read). Ask the user to approve the set, and run nothing on user tables until they do. A query outside the approved set needs approval again.
   2. Return aggregates (counts, sums, whether two results match), not rows. Do not output values of user columns such as IDs, names or free text; database, table and column names are fine.
-  3. Add `LIMIT` and `SETTINGS log_comment = 'poc-assistant', max_execution_time = 60`. The listed queries leave out queries with this `log_comment`, so they are not counted as workload. If the connection cannot change settings, run them without the `SETTINGS` clause and say that they are counted in the workload numbers.
+  3. Add `LIMIT` and `SETTINGS log_comment = 'poc-assistant', max_execution_time = 60`. The listed queries leave out queries with this `log_comment`, so they are not counted as workload. If the connection cannot change settings, run only queries whose estimate is under 100 million rows, without the `SETTINGS` clause, and say that they had no time limit and are counted in the workload numbers (the row limit is this assistant's safety limit, not a ClickHouse rule). If `EXPLAIN ESTIMATE` cannot run, do not query user tables.
   4. Do not run them while a load test is running. They wake an idled service, like any query.
 
   If the user does not approve, or the connection cannot read the table, stay with system tables and say what could not be checked.
@@ -45,6 +45,10 @@ You explain what happened on a ClickHouse Cloud service during one load test. Yo
 
    If `log_comment` in `30` is set per step (for example by the load tool), report per `log_comment` instead of per minute; otherwise say that a minute can mix two steps.
 4. Write the report below. Keep it to what the results show.
+
+### Comparing two runs
+
+When the user asks whether a change helped (a new sorting key, a setting, a rewritten query, another size), ask for both windows: run A before the change and run B after it, with the same load. Replace the four markers in `queries/loadtest/32_compare_windows.sql` (`/*a_start*/`, `/*a_end*/`, `/*b_start*/`, `/*b_end*/`) with `toDateTime('<time>', 'UTC')`, run it, and judge it with "How to compare two runs" in `reference/checks-autoscaling-and-test-design.md`. Run `30` and `31` for each window as well when the user wants the reason. Report per pattern: the ratios, the cache columns of both runs, and whether the comparison is fair.
 
 ## Report format
 

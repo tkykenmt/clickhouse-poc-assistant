@@ -1,4 +1,5 @@
 -- Last 24 hours against the daily average of the 7 days before: ingest, queries, latency, errors.
+-- written_rows of an INSERT also counts rows written by its attached materialized views.
 WITH
     now() - INTERVAL 1 DAY AS day_start,
     now() - INTERVAL 8 DAY AS base_start
@@ -7,8 +8,8 @@ SELECT
     countIf(event_time >= day_start) AS last_24h,
     round(countIf(event_time < day_start) / 7) AS daily_avg_prev_7d,
     countIf(event_time >= day_start AND type = 'ExceptionWhileProcessing') AS errors_last_24h,
-    round(quantileIf(0.99)(query_duration_ms, event_time >= day_start)) AS p99_ms_last_24h,
-    round(quantileIf(0.99)(query_duration_ms, event_time < day_start)) AS p99_ms_prev_7d,
+    round(quantileIf(0.99)(query_duration_ms, event_time >= day_start AND type = 'QueryFinish')) AS p99_ms_last_24h,
+    round(quantileIf(0.99)(query_duration_ms, event_time < day_start AND type = 'QueryFinish')) AS p99_ms_prev_7d,
     sumIf(written_rows, event_time >= day_start) AS written_rows_last_24h,
     round(sumIf(written_rows, event_time < day_start) / 7) AS written_rows_daily_avg_prev_7d
 FROM clusterAllReplicas('default', merge('system', '^query_log'))

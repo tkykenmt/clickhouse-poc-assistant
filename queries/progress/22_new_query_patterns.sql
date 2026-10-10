@@ -1,9 +1,9 @@
 -- SELECT patterns first seen in the last 24 hours (within the last 8 days), heaviest first.
--- sample_query contains literal values; it stays inside this conversation.
+-- sample_query is one query text per pattern with literal values replaced by ? (normalizeQuery).
 SELECT
     toString(normalized_query_hash) AS query_hash,
     arrayStringConcat(any(tables), ' ') AS query_tables,
-    leftUTF8(any(query), 1000) AS sample_query,
+    leftUTF8(normalizeQuery(any(query)), 1000) AS sample_query,
     min(event_time) AS first_seen,
     count() AS executions,
     round(quantile(0.99)(query_duration_ms)) AS p99_ms,

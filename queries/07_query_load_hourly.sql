@@ -18,7 +18,7 @@ FROM
         query_kind,
         count() AS sec_queries,
         countIf(type = 'ExceptionWhileProcessing') AS sec_errors,
-        quantilesState(0.5, 0.99)(query_duration_ms) AS duration_state,
+        quantilesStateIf(0.5, 0.99)(query_duration_ms, type = 'QueryFinish') AS duration_state,
         sum(ProfileEvents['UserTimeMicroseconds'] + ProfileEvents['SystemTimeMicroseconds']) AS cpu_us,
         sum(read_rows) AS sec_read_rows,
         sum(written_rows) AS sec_written_rows

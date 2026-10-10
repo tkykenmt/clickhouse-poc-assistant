@@ -5,8 +5,8 @@ Each check names the columns it reads, the rule, and the public source of the ru
 ## How much did each query read for what it returned?
 
 - **Columns**: `avg_read_rows`, `avg_result_rows`, `avg_selected_parts`, `avg_selected_marks`, `marks_read_ratio` (`queries/loadtest/30_window_query_breakdown.sql`); `avg_read_rows`, `avg_result_rows`, `avg_selected_parts`, `avg_selected_marks`, `marks_read_ratio` (`queries/advisor/11_query_efficiency.sql`).
-- **Rule**: the primary index selects whole granules of `index_granularity` rows (8192 by default) in each part. A low `marks_read_ratio` does not by itself mean a query reads little. If marks are about equal to parts and read rows are far above result rows, each part contributes about one granule and the rows read follow the number of parts. Candidates are fewer parts or a smaller `index_granularity`. In the ClickHouse source, open-source MergeTree rejects changing `index_granularity` on an existing table (`READONLY_SETTING`), while SharedMergeTree in ClickHouse Cloud accepts `ALTER TABLE ... MODIFY SETTING index_granularity = ...` because each part keeps the granularity it was written with. The new value applies to parts written after the change, so existing data keeps the old granularity until it is rewritten; test the change on a copy and compare `marks` and `read_rows` before advising it.
-- **Source**: https://clickhouse.com/docs/guides/clickhouse/data-modelling/sparse-primary-indexes , https://clickhouse.com/docs/reference/settings/merge-tree-settings/index-granularity , ClickHouse source: https://github.com/ClickHouse/ClickHouse/blob/master/src/Storages/MergeTree/MergeTreeSettings.cpp (`isReadonlySetting`, `isSMTReadonlySetting`)
+- **Rule**: the primary index selects whole granules of `index_granularity` rows (8192 by default) in each part. A low `marks_read_ratio` does not by itself mean a query reads little. If marks are about equal to parts and read rows are far above result rows, each part contributes about one granule and the rows read follow the number of parts. When marks are close to the table's total marks instead, the sorting key does not match the filters: the ordering key should start with the columns the queries filter on most, especially those that exclude many rows. Candidates are fewer parts or a smaller `index_granularity`. In the ClickHouse source, open-source MergeTree rejects changing `index_granularity` on an existing table (`READONLY_SETTING`), while SharedMergeTree in ClickHouse Cloud accepts `ALTER TABLE ... MODIFY SETTING index_granularity = ...` because each part keeps the granularity it was written with. The new value applies to parts written after the change, so existing data keeps the old granularity until it is rewritten; test the change on a copy and compare `marks` and `read_rows` before advising it.
+- **Source**: https://clickhouse.com/docs/concepts/best-practices/choosing-a-primary-key , https://clickhouse.com/docs/guides/clickhouse/data-modelling/sparse-primary-indexes , https://clickhouse.com/docs/reference/settings/merge-tree-settings/index-granularity , ClickHouse source: https://github.com/ClickHouse/ClickHouse/blob/master/src/Storages/MergeTree/MergeTreeSettings.cpp (`isReadonlySetting`, `isSMTReadonlySetting`)
 
 ## Was the cache cold?
 
@@ -77,3 +77,39 @@ Each check names the columns it reads, the rule, and the public source of the ru
 - **Columns**: `old_analyzer_executions` (`11`).
 - **Rule**: ClickHouse Cloud is moving every service to the new analyzer, and since 26.9 it is mandatory (setting `enable_analyzer = 0` is rejected); patterns that turn it off need to be fixed before the service moves to 26.9.
 - **Source**: https://clickhouse.com/docs/guides/clickhouse/performance-and-monitoring/analyzer#cloud-migration
+
+## Does ORDER BY ... LIMIT read the whole table?
+
+- **Columns**: `avg_read_rows`, `avg_result_rows`, `sample_query` (`queries/advisor/11_query_efficiency.sql`); `sorting_key` (`queries/advisor/10_table_layout.sql`).
+- **Rule**: with `ORDER BY ... LIMIT`, the server avoids reading all data only when the `ORDER BY` expression has a prefix that matches the table's sorting key (`optimize_read_in_order`). A pattern whose `sample_query` sorts by other columns and reads far more rows than it returns reads everything before the limit applies.
+- **Source**: https://clickhouse.com/docs/reference/statements/select/order-by
+
+## Is a CTE computed more than once?
+
+- **Columns**: `avg_read_rows`, `sample_query` (`11`), `total_rows` of the tables it reads (`10`).
+- **Rule**: by default a CTE is inlined at each reference and re-executed every time. A pattern that references the same CTE several times and reads a multiple of its tables' rows pays for each reference.
+- **Source**: https://clickhouse.com/docs/reference/statements/select/with
+
+## Are JOIN inputs filtered before the join?
+
+- **Columns**: `avg_read_rows`, `spilled_join_executions`, `max_memory_bytes`, `sample_query` (`11`).
+- **Rule**: filters are not always pushed down to both sides of a JOIN; if they are not, rewrite one side as a subquery that filters first, and check the plan with `EXPLAIN`. Ported outer JOINs return the column type's default value for unmatched rows unless `join_use_nulls = 1`, so a query ported from another database can return different results; compare results as well as speed.
+- **Source**: https://clickhouse.com/docs/concepts/best-practices/minimize-optimize-joins , https://clickhouse.com/docs/reference/statements/explain
+
+## Are column types left as inferred?
+
+- **Columns**: rows with `check` = `mostly nullable table` (`queries/advisor/13_service_objects.sql`); `type`, compressed and uncompressed bytes per column (`queries/03_columns.sql`).
+- **Rule**: use `Nullable` only when empty and NULL must be told apart, and prefer `DateTime` over `DateTime64` unless sub-second precision is needed; `Nullable` adds storage and almost always costs performance. Tables whose columns are mostly `Nullable` usually kept the types of a migration or of schema inference.
+- **Source**: https://clickhouse.com/docs/concepts/best-practices/select-data-type , https://clickhouse.com/docs/concepts/best-practices/avoidnullablecolumns
+
+## Does a rollup table actually roll up?
+
+- **Columns**: rows with `check` = `rollup table` (`queries/advisor/13_service_objects.sql`) with `value` (rows) and `sorting_key`; `total_rows` of the source table (`10`).
+- **Rule**: `SummingMergeTree` replaces all rows with the same sorting key with one row when merging, and the summed columns must not be in the sorting key. If the sorting key holds a high-cardinality column, rows rarely share a key and the rollup stays almost as large as its source; compare its rows with the source table's.
+- **Source**: https://clickhouse.com/docs/reference/engines/table-engines/mergetree-family/summingmergetree
+
+## Would parallel replicas help one large query?
+
+- **Columns**: patterns with high `p50_ms` and `avg_read_rows` that run rarely (`11`); `replica` count (`queries/01_service.sql`).
+- **Rule**: one query runs on one replica unless parallel replicas are enabled (`enable_parallel_replicas`, off by default). For queries that read a lot of rows it can spread the work; for queries that read few rows the coordination between replicas can make them slower. Suggest it as a candidate to measure, not as a fix.
+- **Source**: https://clickhouse.com/docs/products/cloud/features/infrastructure/parallel-replicas

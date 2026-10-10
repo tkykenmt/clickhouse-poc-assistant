@@ -6,10 +6,10 @@ SELECT
     q.target_table AS target_table,
     q.inserts AS inserts,
     q.inserts_per_second AS inserts_per_second,
-    p.p50_rows_per_insert AS p50_rows_per_insert,
-    p.p10_rows_per_insert AS p10_rows_per_insert,
-    p.avg_parts_per_insert AS avg_parts_per_insert,
-    p.max_parts_per_insert AS max_parts_per_insert,
+    if(empty(p.target_table), NULL, p.p50_rows_per_insert) AS p50_rows_per_insert,
+    if(empty(p.target_table), NULL, p.p10_rows_per_insert) AS p10_rows_per_insert,
+    if(empty(p.target_table), NULL, p.avg_parts_per_insert) AS avg_parts_per_insert,
+    if(empty(p.target_table), NULL, p.max_parts_per_insert) AS max_parts_per_insert,
     q.async_inserts AS async_inserts,
     q.async_inserts_without_wait AS async_inserts_without_wait,
     q.max_attached_views AS max_attached_views,
@@ -68,4 +68,4 @@ LEFT JOIN
 ) AS p ON q.target_table = p.target_table
 ORDER BY inserts DESC
 LIMIT 50
-SETTINGS skip_unavailable_shards = 1, join_use_nulls = 1
+SETTINGS skip_unavailable_shards = 1

@@ -4,7 +4,7 @@ WITH now() - INTERVAL 1 DAY AS day_start
 SELECT
     toString(normalized_query_hash) AS query_hash,
     arrayStringConcat(any(tables), ' ') AS query_tables,
-    leftUTF8(any(query), 1000) AS sample_query,
+    leftUTF8(normalizeQuery(any(query)), 1000) AS sample_query,
     countIf(event_time >= day_start) AS executions_24h,
     countIf(event_time < day_start) AS executions_prev_7d,
     round(quantileIf(0.99)(query_duration_ms, event_time >= day_start)) AS p99_ms_24h,

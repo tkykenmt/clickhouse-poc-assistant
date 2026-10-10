@@ -16,19 +16,19 @@ SELECT
     m.cpu_cores,
     m.cpu_wait_cores,
     m.cpu_wait_ratio,
-    c.container_cpu_cores,
-    c.container_system_cores,
-    l.cpu_limit_cores,
+    if(empty(c.replica), NULL, c.container_cpu_cores) AS container_cpu_cores,
+    if(empty(c.replica), NULL, c.container_system_cores) AS container_system_cores,
+    if(empty(l.replica), NULL, l.cpu_limit_cores) AS cpu_limit_cores,
     m.max_running_queries,
     m.queries_started,
     m.queries_delayed_for_cpu_slots,
-    c.memory_used_ratio,
-    c.memory_used_ratio_without_page_cache,
+    if(empty(c.replica), NULL, c.memory_used_ratio) AS memory_used_ratio,
+    if(empty(c.replica), NULL, c.memory_used_ratio_without_page_cache) AS memory_used_ratio_without_page_cache,
     m.max_tcp_connections,
     m.max_http_connections,
     m.fs_cache_hit_rate,
     m.s3_read_wait_seconds,
-    c.max_parts_in_partition,
+    if(empty(c.replica), NULL, c.max_parts_in_partition) AS max_parts_in_partition,
     m.max_memory_tracked_bytes
 FROM
 (
@@ -81,4 +81,4 @@ LEFT JOIN
     GROUP BY replica, t
 ) AS c ON m.replica = c.replica AND m.t = c.t
 ORDER BY m.t, m.replica
-SETTINGS skip_unavailable_shards = 1, join_use_nulls = 1
+SETTINGS skip_unavailable_shards = 1

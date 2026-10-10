@@ -56,7 +56,9 @@ done
 for i in $(seq 1 10); do
   admin "SELECT kind, count(), avg(v) FROM app.events WHERE user_id = $i GROUP BY kind FORMAT Null"
 done
-admin "INSERT INTO app.events SETTINGS async_insert = 1, wait_for_async_insert = 1 VALUES (now(), 1, 'a', 1.0)"
+# One async insert over HTTP with a time limit (the native client sometimes did not return after the flush).
+curl -sS --max-time 30 "http://localhost:$HTTP/?async_insert=1&wait_for_async_insert=1" \
+  --data-binary "INSERT INTO app.events VALUES (now(), 1, 'a', 1.0)" || echo "warning: async insert did not finish"
 admin "SELECT * FROM app.missing" >/dev/null 2>&1 || true
 # INSERT ... SELECT names its source in tables; only the target may count as an insert target.
 admin "CREATE TABLE app.src ENGINE = MergeTree ORDER BY tuple() AS SELECT number AS n FROM numbers(10)"

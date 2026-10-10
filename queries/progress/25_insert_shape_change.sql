@@ -6,8 +6,8 @@ SELECT
     q.target_table AS target_table,
     q.inserts_24h AS inserts_24h,
     q.inserts_daily_avg_prev_7d AS inserts_daily_avg_prev_7d,
-    p.p50_rows_per_insert_24h AS p50_rows_per_insert_24h,
-    p.p50_rows_per_insert_prev_7d AS p50_rows_per_insert_prev_7d,
+    if(empty(p.target_table), NULL, p.p50_rows_per_insert_24h) AS p50_rows_per_insert_24h,
+    if(empty(p.target_table), NULL, p.p50_rows_per_insert_prev_7d) AS p50_rows_per_insert_prev_7d,
     q.async_inserts_24h AS async_inserts_24h,
     q.async_inserts_without_wait_24h AS async_inserts_without_wait_24h
 FROM
@@ -58,4 +58,4 @@ LEFT JOIN
 ) AS p ON q.target_table = p.target_table
 ORDER BY inserts_24h DESC
 LIMIT 30
-SETTINGS skip_unavailable_shards = 1, join_use_nulls = 1
+SETTINGS skip_unavailable_shards = 1

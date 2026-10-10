@@ -1,10 +1,10 @@
 -- Query patterns with index and read efficiency, heaviest first. Basis for query advice.
--- sample_query is one raw query text per pattern (literals included); it stays inside this conversation.
+-- sample_query is one query text per pattern with literal values replaced by ? (normalizeQuery).
 SELECT
     toString(normalized_query_hash) AS query_hash,
     query_kind,
     arrayStringConcat(any(tables), ' ') AS query_tables,
-    leftUTF8(any(query), 1000) AS sample_query,
+    leftUTF8(normalizeQuery(any(query)), 1000) AS sample_query,
     count() AS executions,
     round(quantile(0.5)(query_duration_ms)) AS p50_ms,
     round(quantile(0.99)(query_duration_ms)) AS p99_ms,
