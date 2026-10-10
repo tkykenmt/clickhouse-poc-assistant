@@ -71,6 +71,6 @@ scripts/test-queries.sh         # PATH に clickhouse のバイナリが必要
 
 - ClickHouse 26.7 と 26.8 で、最小権限の DB ユーザーとして全クエリが通ります（`scripts/test-queries.sh`）。ClickHouse Cloud（26.6）の検証用サービスでも、全クエリがエラーなく動きます。
 - `poc-plan-builder` と `poc-sizing-stats` は、検証用のサービスで最後まで動きました。`reference/checks-*.md` を加えたあと、`poc-schema-query-advisor`、`poc-daily-progress`、`poc-load-test-review` を ClickHouse Agents 経由で検証用のサービスに対してもう一度動かし、新しい観点が使われることを確かめました。`poc-load-test-review` は、検証用のサービスに 4 段階の負荷をかけ、ClickHouse Agents 経由で ClickHouse Cloud（26.6）上で最後まで動きました（`log_comment` による段階ごとの集計、上限に達したコンテナの CPU、CPU 待ち、パーツごとの読み取り行数）。1 回は、ドキュメントの検索を繰り返したあとにモデル側のエラーで止まりました。スキルには、記載済みの URL を検索し直さないよう書き足しました。
-- v0.3.0 で加えた次のものは、まだ手元（`scripts/test-queries.sh`、ClickHouse 26.7）でしか確かめていません：`queries/advisor/13_service_objects.sql`、`queries/loadtest/32_compare_windows.sql`、`poc-summary` スキル、計画の `## 結果`、ユーザーの了承を得てユーザーのテーブルに流すクエリ。
+- v0.3.0 で加えた次のものは、まだ手元でしか確かめておらず、ClickHouse Agents では動かしていません：`queries/advisor/13_service_objects.sql`、`queries/loadtest/32_compare_windows.sql`、`poc-summary` スキル、計画の `## 結果`、ユーザーの了承を得てユーザーのテーブルに流すクエリ。`scripts/test-queries.sh` のほか、配布する zip の中身だけを使ってエージェントに手順どおり動かしてもらいました（手元のサーバー、クエリ単位の設定を拒む読み取り専用の接続と受け付ける接続の両方）。v0.3.1 はそこで見つかった点を直しています。
 - 日次のまとめの「変化だけの助言」は、変化ではなく続いている状態（小さい INSERT など）を拾うことがあります。
 - 使っていないもの：ClickHouse Agents のメモリ（手で作ったメモリが検証では会話に渡らなかった）、定期実行（ClickHouse のツールを付けたエージェントで予定を作ると、MCP の再接続を求められ続けた）、Agent API（使えない）。日次のまとめと週次の総点検は、エージェントに頼んで実行します。

@@ -48,7 +48,7 @@ FROM
         round(sum(ProfileEvent_ReadBufferFromS3Microseconds) / 1e6, 2) AS s3_read_wait_seconds,
         max(CurrentMetric_MemoryTracking) AS max_memory_tracked_bytes
     FROM clusterAllReplicas('default', merge('system', '^metric_log'))
-    WHERE event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) AND toDate(now() /*window_end*/)
+    WHERE event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) - 1 AND toDate(now() /*window_end*/) + 1
       AND event_time >= now() - INTERVAL 1 HOUR /*window_start*/
       AND event_time < now() /*window_end*/
     GROUP BY replica, t
@@ -58,7 +58,7 @@ LEFT JOIN
     SELECT hostname AS replica, max(value) AS cpu_limit_cores
     FROM clusterAllReplicas('default', merge('system', '^asynchronous_metric_log'))
     WHERE metric = 'CGroupMaxCPU'
-      AND event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) AND toDate(now() /*window_end*/)
+      AND event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) - 1 AND toDate(now() /*window_end*/) + 1
       AND event_time >= now() - INTERVAL 1 HOUR /*window_start*/
       AND event_time < now() /*window_end*/
     GROUP BY replica
@@ -75,7 +75,7 @@ LEFT JOIN
         round(avgIf(value, metric = 'CGroupMemoryUsedWithoutPageCache') / nullIf(maxIf(value, metric = 'CGroupMemoryTotal'), 0), 3) AS memory_used_ratio_without_page_cache
     FROM clusterAllReplicas('default', merge('system', '^asynchronous_metric_log'))
     WHERE metric IN ('CGroupUserTime', 'CGroupSystemTime', 'MaxPartCountForPartition', 'CGroupMemoryUsed', 'CGroupMemoryUsedWithoutPageCache', 'CGroupMemoryTotal')
-      AND event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) AND toDate(now() /*window_end*/)
+      AND event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) - 1 AND toDate(now() /*window_end*/) + 1
       AND event_time >= now() - INTERVAL 1 HOUR /*window_start*/
       AND event_time < now() /*window_end*/
     GROUP BY replica, t

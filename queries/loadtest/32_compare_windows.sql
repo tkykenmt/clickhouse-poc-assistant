@@ -31,6 +31,10 @@ SELECT
     anyIf(toNullable(query_cache_read_share), run = 'B') AS query_cache_read_share_b,
     anyIf(toNullable(fs_cache_hit_rate), run = 'A') AS fs_cache_hit_rate_a,
     anyIf(toNullable(fs_cache_hit_rate), run = 'B') AS fs_cache_hit_rate_b,
+    anyIf(toNullable(condition_cache_hit_share), run = 'A') AS condition_cache_hit_share_a,
+    anyIf(toNullable(condition_cache_hit_share), run = 'B') AS condition_cache_hit_share_b,
+    anyIf(toNullable(avg_peak_threads), run = 'A') AS avg_peak_threads_a,
+    anyIf(toNullable(avg_peak_threads), run = 'B') AS avg_peak_threads_b,
     sumIf(errors, run = 'A') AS errors_a,
     sumIf(errors, run = 'B') AS errors_b
 FROM
@@ -47,6 +51,8 @@ FROM
         round(avg(read_rows)) AS avg_read_rows,
         round(avg(ProfileEvents['SelectedMarks']), 1) AS avg_selected_marks,
         round(countIf(query_cache_usage = 'Read') / count(), 3) AS query_cache_read_share,
+        round(countIf(ProfileEvents['QueryConditionCacheHits'] > 0) / count(), 3) AS condition_cache_hit_share,
+        round(avg(peak_threads_usage), 1) AS avg_peak_threads,
         round(sum(ProfileEvents['CachedReadBufferReadFromCacheBytes'])
               / nullIf(sum(ProfileEvents['CachedReadBufferReadFromCacheBytes']) + sum(ProfileEvents['CachedReadBufferReadFromSourceBytes']), 0), 3) AS fs_cache_hit_rate
     FROM clusterAllReplicas('default', merge('system', '^query_log'))
@@ -58,7 +64,7 @@ FROM
       AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
       AND log_comment != 'poc-assistant'  -- queries the assistant ran on user tables with the user's approval
       AND query_kind = 'Select'
-      AND event_date BETWEEN toDate(least(a_start, b_start)) AND toDate(greatest(a_end, b_end))
+      AND event_date BETWEEN toDate(least(a_start, b_start)) - 1 AND toDate(greatest(a_end, b_end)) + 1  -- a day either side: event_date is in the server time zone
       AND ((event_time >= a_start AND event_time < a_end) OR (event_time >= b_start AND event_time < b_end))
     GROUP BY run, query_hash
 )

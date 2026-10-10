@@ -1,5 +1,6 @@
 -- Storage per table: rows, compressed and uncompressed bytes, parts and partitions.
 -- Note: compact parts (small, recently written) can report 0 compressed bytes until they are merged into wide parts.
+-- rows still includes rows removed by lightweight DELETE until merges rewrite the parts.
 SELECT
     p.database AS database,
     p.table AS table,

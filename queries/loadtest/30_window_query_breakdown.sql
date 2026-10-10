@@ -2,8 +2,10 @@
 -- and how much each query reads compared with what it returns. Ten busiest patterns per minute.
 -- Rows are also split by log_comment, so a load tool that tags each step (for example log_comment = 'step_c8') can be read per step.
 -- p50_ms and p99_ms count finished queries only; failed queries are in errors, so a run that fails fast does not look fast.
--- Replace the two window markers with the test's start and end in UTC, for example
--- toDateTime('2026-10-09 08:57:50', 'UTC') /*window_start*/.
+-- Replace the expression in front of each window marker with the test's start and end in UTC, for example
+-- toDateTime('2026-10-09 08:57:50', 'UTC') /*window_start*/. The end is exclusive.
+-- event_date is filtered a day either side of the window because it is in the server's time zone, not UTC.
+-- minute is in the server's time zone.
 SELECT
     toStartOfMinute(event_time) AS minute,
     log_comment,
@@ -44,7 +46,7 @@ WHERE type IN ('QueryFinish', 'ExceptionWhileProcessing')
   AND user NOT LIKE '%-internal'  -- ClickHouse Cloud's own monitoring users
   AND log_comment != 'poc-assistant'  -- queries the assistant ran on user tables with the user's approval
   AND query_kind IN ('Select', 'Insert')
-  AND event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) AND toDate(now() /*window_end*/)
+  AND event_date BETWEEN toDate(now() - INTERVAL 1 HOUR /*window_start*/) - 1 AND toDate(now() /*window_end*/) + 1
   AND event_time >= now() - INTERVAL 1 HOUR /*window_start*/
   AND event_time < now() /*window_end*/
 GROUP BY minute, log_comment, query_hash, query_kind
