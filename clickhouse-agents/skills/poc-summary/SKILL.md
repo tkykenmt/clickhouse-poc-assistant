@@ -38,7 +38,7 @@ If the file, `## Target` or `## Success criteria` is missing, say which, and sto
   5. Do not run them while a load test is running. They wake an idled service, like any query.
 
   If the user does not approve, or the connection cannot read the table, stay with system tables and say what could not be checked.
-- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user. Queries on user tables that carry `log_comment = 'poc-assistant'` are left out; any other query on user tables over this connection is counted.
+- The queries leave out this connection's own reads of system tables, but keep every other query of the same database user. Queries on user tables that carry `log_comment = 'poc-assistant'` are left out; any other query on user tables over this connection is counted. That includes queries from other chats with ClickHouse Agents, which do not carry the tag: when a finding rests on untagged queries of the connection's own user (`user = currentUser()`), say so and ask the user whether they were PoC work.
 - Do not output user names or e-mail addresses. Do not quote literal values from query text.
 - When you state how ClickHouse behaves (not a number from a query), cite a URL from the `reference/` files or confirm it with the documentation search tool and attach the URL. The URLs in the `reference/` files have been checked; cite them as they are.
 - Times in query results are in the server's time zone; label them.
@@ -47,7 +47,7 @@ If the file, `## Target` or `## Success criteria` is missing, say which, and sto
 ## Steps
 
 1. Read the plan file. Ask for the period to summarize (default: the PoC period up to today) and whether this is a weekly or a final summary.
-2. Read and run these files with `30 /*days*/` replaced by the number of days from the period's start to today (for 2026-10-01 to 2026-10-10, use 9; at most 30). `02_tables` has no period: it shows the tables as they are now. The paths are exact; do not guess other names. If a query fails because settings cannot be changed, remove the final `SETTINGS skip_unavailable_shards = 1` line and run it again.
+2. Read and run these files with `30 /*days*/` replaced by the number of days from the period's start to today (for 2026-10-01 to 2026-10-10, use 9: `event_date >= today() - 9` then covers 10 calendar days, the last one partial; state the period in calendar days; at most 30). `02_tables` has no period: it shows the tables as they are now. The paths are exact; do not guess other names. If a query fails because settings cannot be changed, remove the final `SETTINGS skip_unavailable_shards = 1` line and run it again.
    - `queries/02_tables.sql` (data volume and compression)
    - `queries/06_query_patterns.sql` (the heaviest query patterns)
    - `queries/progress/26_errors_by_code.sql`

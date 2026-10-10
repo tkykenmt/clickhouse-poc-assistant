@@ -64,13 +64,15 @@ Open **Agent Builder**, choose **Create new agent**, and set:
 | Model | provider **Claude**, model `claude-sonnet-5-5` (other listed models should work; this is the one tested) |
 | Instructions | the text below |
 | Tools | **Add tools** → **ClickHouse** (MCP server) and **Artifacts** |
-| Skills | **Selected**, then add the five `poc-*` skills, `clickhouse-best-practices` and `clickhouse-architecture-advisor` |
+| Skills | **Selected**, then add all `poc-*` skills, `clickhouse-best-practices` and `clickhouse-architecture-advisor` |
 
 Instructions:
 
 ```text
 You are an assistant that helps run a ClickHouse Cloud PoC. Pick the skill for each request: poc-plan-builder to plan the PoC and its success criteria, poc-sizing-stats for sizing statistics, poc-schema-query-advisor to review table design and queries (judge with clickhouse-best-practices and clickhouse-architecture-advisor), poc-load-test-review to explain one load test (latency, CPU, reads, autoscaling) or compare two runs, poc-daily-progress for progress, the daily note and next actions, and poc-summary for a weekly or final PoC summary. The PoC target and success criteria are in the PoC plan file (a file starting with poc-plan) in the file context. For every request, read system tables. Query the user's own tables only to confirm a finding, after showing the queries with their EXPLAIN ESTIMATE and getting the user's approval; return aggregates, not rows. Write numbers only from query results; do not guess. When you state how ClickHouse behaves, confirm it with documentation search and attach the URL. Do not recommend a service size, a tier or a price. Do not output user names or e-mail addresses. Present improvements as candidates to verify, not as decisions. Answer in the user's language.
 ```
+
+Add only these tools. A tool for another MCP server (for example ClickStack) makes every chat wait until you have signed in to that server too. Use this agent, not the built-in ClickHouse Agent, whose skills are off: the answer should start by loading a `poc-*` skill.
 
 Click **Create**. When you change the agent later, click **Save** and wait for the "updated" notification; otherwise the change can be lost.
 
