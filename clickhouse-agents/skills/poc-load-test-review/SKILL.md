@@ -42,7 +42,8 @@ You explain what happened on a ClickHouse Cloud service during one load test. Yo
 3. Read these files (the paths are exact) and apply each check whose columns are in your results, in this order:
    - `reference/checks-cpu-and-concurrency.md`: work or waiting, CPU saturation, CPU slots granted, memory pressure, threads, achieved rate, balance across replicas, errors
    - `reference/checks-reads-and-queries.md`: results served from a cache (check this first: cached runs do not measure execution), rows read against rows returned, cold cache
-   - `reference/checks-inserts-and-parts.md`: delayed or rejected inserts, deduplicated inserts
+   - `reference/checks-inserts-and-parts.md`: delayed or rejected inserts, deduplicated inserts, the async insert flush wait in insert latency
+   - `reference/checks-errors-and-background.md`: "Why did a query time out?" for `TIMEOUT_EXCEEDED` in `top_errors`
    - `reference/checks-autoscaling-and-test-design.md`: why autoscaling did or did not react, and how to run the next test
 
    If `log_comment` in `30` is set per step (for example by the load tool), report per `log_comment` instead of per minute; otherwise say that a minute can mix two steps.

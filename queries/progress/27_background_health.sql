@@ -1,5 +1,5 @@
 -- Background work that is stuck or failing: unfinished mutations, failed merges and mutations of parts,
--- failing refreshable materialized views, and the longest running merges. One row per finding, no message text.
+-- failing refreshable materialized views, detached parts, and the longest running merges. One row per finding, no message text.
 -- In ClickHouse Cloud every node holds all mutations, so system.mutations is read without clusterAllReplicas.
 SELECT check, object, detail, occurrences, first_time, last_time
 FROM
@@ -46,6 +46,19 @@ FROM
     FROM clusterAllReplicas('default', system.view_refreshes)
     WHERE exception != ''
     GROUP BY object
+
+    UNION ALL
+
+    -- An empty reason means a user detached the part; NULL means the part name is invalid.
+    SELECT
+        'detached part' AS check,
+        concat(database, '.', table, ' on ', hostName()) AS object,
+        if(reason IS NULL, 'invalid part name', concat('reason=', reason)) AS detail,
+        count() AS occurrences,
+        min(modification_time) AS first_time,
+        max(modification_time) AS last_time
+    FROM clusterAllReplicas('default', system.detached_parts)
+    GROUP BY database, table, hostName(), reason
 
     UNION ALL
 

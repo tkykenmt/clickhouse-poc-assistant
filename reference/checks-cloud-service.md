@@ -18,6 +18,12 @@ These are rules about the service and about how the skills read it. The URLs hav
 - **Rule**: the service is not idled while the number of active parts exceeds the threshold (default 10,000) or while merges are running. The documentation does not say which databases' parts count; this assistant compares the replica total from `13`, which includes the `system` database, to be conservative, and says so. Queries from anywhere keep it awake; the default IP access list allows any address, so restricting it is recommended.
 - **Source**: https://clickhouse.com/docs/products/cloud/features/autoscaling/idling
 
+## Did something stop while the service was idle?
+
+- **Columns**: `uptime_seconds` (`queries/01_service.sql`), rows with `check` = `refreshable view failing` (`queries/progress/27_background_health.sql`), `queries` by hour (`queries/07_query_load_hourly.sql`).
+- **Rule**: while idle, the service can suspend refreshes of refreshable materialized views, consumption from S3Queue and the scheduling of new merges; merges already running finish first. To keep them running, disable idling. Connections can time out while the service is paused, so a client's first query after a quiet period can fail; the client must tolerate the wake-up delay and retry, and the documentation recommends testing its timeout and retry behaviour against an idle service. The system tables do not record idling itself: when hours with no queries line up with a view that stopped refreshing, S3Queue lag or a connect timeout reported by the user, say that idling is the likely cause and that it is inferred.
+- **Source**: https://clickhouse.com/docs/products/cloud/features/autoscaling/idling
+
 ## How far back the evidence goes
 
 - **Rule**: system table data is kept for 30 days (and copied to new replicas when they replace old ones). Findings older than that cannot be checked; say so when the user asks about an earlier period.

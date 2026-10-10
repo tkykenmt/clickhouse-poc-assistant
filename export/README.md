@@ -46,7 +46,7 @@ Replace the password.
 
 ```sql
 CREATE USER IF NOT EXISTS sizing_reader IDENTIFIED BY '<password>';
-GRANT SHOW DATABASES, SHOW TABLES, SHOW COLUMNS ON *.* TO sizing_reader;
+GRANT SHOW DATABASES, SHOW TABLES, SHOW COLUMNS, SHOW DICTIONARIES ON *.* TO sizing_reader;
 GRANT SELECT ON system.* TO sizing_reader;
 GRANT REMOTE ON *.* TO sizing_reader;
 GRANT CREATE TEMPORARY TABLE ON *.* TO sizing_reader;

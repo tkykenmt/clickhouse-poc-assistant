@@ -14,6 +14,12 @@ Each check names the columns it reads, the rule, and the public source of the ru
 - **Rule**: with `wait_for_async_insert = 0` the client is not told when a flush fails. The `Settings` map in `query_log` holds only changed settings, so a missing key means the default.
 - **Source**: https://clickhouse.com/docs/concepts/features/operations/insert/asyncinserts#choosing-a-return-mode
 
+## Is async insert latency the flush wait?
+
+- **Columns**: `p50_ms`, `p99_ms` of insert patterns (`queries/loadtest/30_window_query_breakdown.sql`, `queries/06_query_patterns.sql`) together with `async_inserts` (`12`).
+- **Rule**: an async insert buffer is flushed when it reaches a size limit or when the busy timeout elapses. Since 24.2 the timeout adapts to the incoming rate between `async_insert_busy_timeout_min_ms` (50 ms by default) and `async_insert_busy_timeout_max_ms` (200 ms by default, 1000 ms on Cloud). With `wait_for_async_insert = 1` the client waits for the flush, so an insert latency up to about that maximum is the design, not slowness; the data is not queryable until the flush. Do not suggest `wait_for_async_insert = 0` to lower it; the documentation recommends waiting for most production scenarios.
+- **Source**: https://clickhouse.com/docs/concepts/features/operations/insert/asyncinserts
+
 ## Do attached materialized views add to insert time?
 
 - **Columns**: `max_attached_views` (`12`).
@@ -23,7 +29,7 @@ Each check names the columns it reads, the rule, and the public source of the ru
 ## Why are there too many parts?
 
 - **Columns**: `p50_rows_per_insert`, `avg_parts_per_insert`, `max_parts_per_insert`, `inserts_per_second`, `async_inserts` (`12`); `max_parts_in_partition`, `partitions` (`10`); `TOO_MANY_PARTS` in `queries/progress/26_errors_by_code.sql`.
-- **Rule**: the knowledge-base causes are small synchronous inserts, a partition key with many values, inserts that touch many partitions (more than one part per insert), and merges that cannot keep up. The fixes are larger batches or async inserts with waiting, and a low-cardinality partition key; raising the part thresholds is not the fix. Rows per insert here come from the parts each insert wrote, not from `written_rows`, which also counts rows written by attached materialized views.
+- **Rule**: the knowledge-base causes are small synchronous inserts, a partition key with many values, inserts that touch many partitions (more than one part per insert), and merges that cannot keep up. The fixes are larger batches or async inserts with waiting, and a low-cardinality partition key; raising the part thresholds is not the primary fix. Rows per insert here come from the parts each insert wrote, not from `written_rows`, which also counts rows written by attached materialized views.
 - **Source**: https://clickhouse.com/docs/resources/support-center/knowledge-base/troubleshooting/exception-too-many-parts#diagnose-the-cause , https://clickhouse.com/docs/reference/system-tables/query_log , https://clickhouse.com/docs/concepts/core-concepts/partitions
 
 ## Were inserts silently deduplicated?
@@ -58,12 +64,18 @@ Each check names the columns it reads, the rule, and the public source of the ru
 
 ## Are backfills one large INSERT ... SELECT?
 
-- **Columns**: rows with `check` = `insert select` (`queries/advisor/13_service_objects.sql`): count, `max_duration_s`, `failed`, `memory_limit`.
-- **Rule**: one large `INSERT ... SELECT` cannot be resumed when it fails, for example on a network interruption; split it into batches by range or by file. It runs on one replica unless `parallel_distributed_insert_select = 2` and `enable_parallel_replicas = 1` (since 25.4 for `SharedMergeTree` sources). With `async_insert = 1`, an `INSERT ... SELECT` takes the asynchronous route only when its whole result is one block within `async_insert_max_data_size`; otherwise it runs synchronously.
-- **Source**: https://clickhouse.com/docs/guides/clickhouse/data-modelling/backfilling , https://clickhouse.com/docs/reference/settings/session-settings/parallel , https://clickhouse.com/docs/concepts/features/operations/insert/async-insert-select
+- **Columns**: rows with `check` = `insert select` (`queries/advisor/13_service_objects.sql`): count, `max_duration_s`, `failed`, `memory_limit`, `too_many_parts`.
+- **Rule**: one large `INSERT ... SELECT` cannot be resumed when it fails, for example on a network interruption; split it into batches by range or by file. It runs on one replica unless `parallel_distributed_insert_select = 2` and `enable_parallel_replicas = 1` (since 25.4 for `SharedMergeTree` sources). With `async_insert = 1`, an `INSERT ... SELECT` takes the asynchronous route only when its whole result is one block within `async_insert_max_data_size`; otherwise it runs synchronously. If such inserts fail with `TOO_MANY_PARTS` (`too_many_parts` in the same row), the knowledge base suggests letting the server form larger blocks with `min_insert_block_size_rows` and `min_insert_block_size_bytes` (and `max_insert_block_size`, which applies only when the server forms the blocks, as over HTTP, not with `clickhouse-client`); it calls this expert tuning whose values are not one size fits all. A long `INSERT ... SELECT` over HTTP that sends nothing back can be closed by a load balancer, which the client sees as `socket hang up` or a timeout; the client documentation suggests `send_progress_in_http_headers = 1` with `http_headers_progress_interval_ms` below the idle timeout.
+- **Source**: https://clickhouse.com/docs/guides/clickhouse/data-modelling/backfilling , https://clickhouse.com/docs/reference/settings/session-settings/parallel , https://clickhouse.com/docs/concepts/features/operations/insert/async-insert-select , https://clickhouse.com/docs/resources/support-center/knowledge-base/performance-optimization/insert-select-settings-tuning , https://clickhouse.com/docs/integrations/language-clients/js
 
 ## Are deletes or updates the main write path?
 
 - **Columns**: rows with `check` = `deletes and updates` (`queries/advisor/13_service_objects.sql`); `unfinished mutation` rows (`queries/progress/27_background_health.sql`).
 - **Rule**: deleting large volumes with lightweight `DELETE` can slow `SELECT` queries, and mutations rewrite parts. If deletes or updates run as often as inserts (for example a delete-then-insert model), consider engines and patterns that avoid mutations.
 - **Source**: https://clickhouse.com/docs/concepts/features/operations/delete/lightweight-delete , https://clickhouse.com/docs/concepts/best-practices/avoid-mutations
+
+## Is old data still there after its TTL?
+
+- **Columns**: `has_ttl` (`queries/advisor/10_table_layout.sql`).
+- **Rule**: TTL is applied eventually, by merges. `merge_with_ttl_timeout` (14400 seconds by default) is the minimum delay before a merge with delete TTL repeats, and it can take longer. If the user expects expired rows to be gone at once, explain this; `ALTER TABLE ... MATERIALIZE TTL` forces it. `has_ttl` detects table-level TTL only; a TTL on a column is not shown.
+- **Source**: https://clickhouse.com/docs/resources/support-center/knowledge-base/data-management/when-is-ttl-applied

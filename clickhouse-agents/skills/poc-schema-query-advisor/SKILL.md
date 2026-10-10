@@ -51,9 +51,10 @@ You review how a ClickHouse Cloud service is designed and used, and propose impr
    - For a fact about ClickHouse behaviour that neither the public skills nor the files below cover, confirm it with the documentation search tool and attach the URL.
    - Read these files (the paths are exact) and apply each check whose columns are in your results; they cover running-service signals that the design rules do not:
      - `reference/checks-reads-and-queries.md`: rows read against rows returned and the sorting key, spilled GROUP BY and JOIN, exact distinct counts, FINAL, columns read, cached results, projections, skipping-index cost, the old analyzer, ORDER BY ... LIMIT, CTEs, JOIN inputs, column types, rollup tables, parallel replicas, choosing the kind of change, how to verify
-     - `reference/checks-inserts-and-parts.md`: delayed or rejected inserts, async inserts without waiting, attached materialized views, too many parts, the partition key, inserts that touch many partitions, backfills, deletes and updates, deduplicated inserts, patch parts
-     - `reference/checks-cloud-service.md`: idling and active parts, object counts against usage limits, server version changes, Kafka engine tables
-     - `reference/checks-cpu-and-concurrency.md`: "Was memory under pressure?" for patterns with high `max_memory_bytes`
+     - `reference/checks-inserts-and-parts.md`: delayed or rejected inserts, async inserts without waiting, attached materialized views, too many parts, the partition key, inserts that touch many partitions, backfills (including `TOO_MANY_PARTS` and load-balancer timeouts on long `INSERT ... SELECT`), deletes and updates, deduplicated inserts, patch parts, the async insert flush wait, TTL that has not removed old data yet
+     - `reference/checks-cloud-service.md`: idling and active parts, what stops while the service is idle, object counts against usage limits, server version changes, Kafka engine tables
+     - `reference/checks-errors-and-background.md`: dictionaries that are empty or failed to load (rows from `13`)
+     - `reference/checks-cpu-and-concurrency.md`: "Was memory under pressure?" for patterns with high `max_memory_bytes`, and the `memory held` rows from `13` when no pattern explains high memory
    - If no rule or documentation page supports a finding, drop it.
 4. Pick at most five findings, most impactful first, and write each as below.
 

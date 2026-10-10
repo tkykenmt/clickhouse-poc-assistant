@@ -1,7 +1,9 @@
 -- Service-wide objects and events that PoCs often trip over: active parts on each replica (all databases, including
 -- system, as the idling threshold counts them), object counts against usage limits, Kafka engine tables, rollup tables,
 -- tables whose columns are mostly Nullable, server revisions seen in the period, deletes and updates, and long or failed
--- INSERT ... SELECT. One row per finding: check, object, value, detail. No message or query text.
+-- INSERT ... SELECT, dictionaries that are empty or failed to load, and memory held now by merges, dictionaries,
+-- in-memory tables and primary keys (a snapshot, in bytes). One row per finding: check, object, value, detail.
+-- No message or query text.
 SELECT check, object, value, detail
 FROM
 (
@@ -72,13 +74,44 @@ FROM
     SELECT 'insert select' AS check, '' AS object, toFloat64(count()) AS value,
            concat('max_duration_s=', toString(round(max(query_duration_ms) / 1e3)),
                   ' failed=', toString(countIf(type != 'QueryFinish')),
-                  ' memory_limit=', toString(countIf(exception_code = 241))) AS detail
+                  ' memory_limit=', toString(countIf(exception_code = 241)),
+                  ' too_many_parts=', toString(countIf(exception_code = 252))) AS detail
     FROM clusterAllReplicas('default', merge('system', '^query_log'))
     WHERE event_date >= today() - 30 /*days*/ AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
       AND is_initial_query AND query_kind = 'Insert' AND positionCaseInsensitive(query, 'SELECT') > 0
       AND user NOT LIKE '%-internal'
       AND log_comment != 'poc-assistant'
     HAVING count() > 0
+
+    UNION ALL
+
+    -- NOT_LOADED is normal: dictionaries load on first use.
+    SELECT 'dictionary empty or failed' AS check, concat(database, '.', name, ' on ', hostName()) AS object,
+           toFloat64(element_count) AS value, concat('status=', toString(status)) AS detail
+    FROM clusterAllReplicas('default', system.dictionaries)
+    -- Direct and cache layouts hold no elements by design.
+    WHERE status IN ('FAILED', 'FAILED_AND_RELOADING')
+       OR (status IN ('LOADED', 'LOADED_AND_RELOADING') AND element_count = 0
+           AND type NOT IN ('Direct', 'ComplexKeyDirect', 'Cache', 'ComplexKeyCache', 'SSDCache', 'SSDComplexKeyCache'))
+
+    UNION ALL
+
+    SELECT 'memory held' AS check, concat(kind, ' on ', host) AS object, toFloat64(bytes) AS value, '' AS detail
+    FROM
+    (
+        SELECT 'merges' AS kind, hostName() AS host, sum(memory_usage) AS bytes
+        FROM clusterAllReplicas('default', system.merges) GROUP BY host
+        UNION ALL
+        SELECT 'dictionaries' AS kind, hostName() AS host, sum(bytes_allocated) AS bytes
+        FROM clusterAllReplicas('default', system.dictionaries) GROUP BY host
+        UNION ALL
+        SELECT 'Memory, Set and Join tables' AS kind, hostName() AS host, sum(ifNull(total_bytes, 0)) AS bytes
+        FROM clusterAllReplicas('default', system.tables) WHERE engine IN ('Memory', 'Set', 'Join') GROUP BY host
+        UNION ALL
+        SELECT 'primary keys' AS kind, hostName() AS host, sum(primary_key_bytes_in_memory) AS bytes
+        FROM clusterAllReplicas('default', system.parts) WHERE active GROUP BY host
+    )
+    WHERE bytes > 0
 )
 ORDER BY check, value DESC
 LIMIT 50 BY check

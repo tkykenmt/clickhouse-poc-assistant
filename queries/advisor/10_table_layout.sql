@@ -8,6 +8,7 @@ SELECT
     t.primary_key AS primary_key,
     t.total_rows AS total_rows,
     t.total_bytes AS total_bytes,
+    match(t.engine_full, '\\sTTL\\s') AS has_ttl,
     p.active_parts AS active_parts,
     p.partitions AS partitions,
     p.max_parts_in_partition AS max_parts_in_partition,

@@ -68,6 +68,17 @@ admin "INSERT INTO app.copy SELECT n FROM app.src"
 admin "SELECT count() FROM app.src SETTINGS log_comment = 'poc-assistant' FORMAT Null"
 # A column named final must not count as FINAL.
 admin "SELECT v AS final_x FROM app.events WHERE user_id = 999999 FORMAT Null"
+# A table with TTL, a detached part, and a loaded dictionary with no elements, for 10, 27 and 13.
+admin "CREATE TABLE app.with_ttl (ts DateTime) ENGINE = MergeTree ORDER BY ts TTL ts + INTERVAL 1 YEAR"
+admin "INSERT INTO app.copy SELECT 1"
+admin "ALTER TABLE app.copy DETACH PART '$(admin "SELECT name FROM system.parts WHERE database = 'app' AND table = 'copy' AND active ORDER BY name DESC LIMIT 1")'"
+admin "CREATE TABLE app.dict_src (k UInt64, v String) ENGINE = MergeTree ORDER BY k"
+admin "CREATE DICTIONARY app.empty_dict (k UInt64, v String) PRIMARY KEY k SOURCE(CLICKHOUSE(DB 'app' TABLE 'dict_src')) LIFETIME(0) LAYOUT(HASHED())"
+admin "SYSTEM RELOAD DICTIONARY app.empty_dict"
+# A column named ttl is not a TTL, and a direct dictionary holds no elements by design.
+admin "CREATE TABLE app.named_ttl (ttl DateTime) ENGINE = MergeTree ORDER BY ttl"
+admin "CREATE DICTIONARY app.direct_dict (k UInt64, v String) PRIMARY KEY k SOURCE(CLICKHOUSE(DB 'app' TABLE 'dict_src')) LAYOUT(DIRECT())"
+admin "SELECT dictGetOrDefault('app.direct_dict', 'v', toUInt64(1), '') FORMAT Null"
 admin "SYSTEM FLUSH LOGS"
 
 # The least-privilege user from export/setup_user.sql.
@@ -123,6 +134,34 @@ if printf '%s\n' "$final_rows" | awk -F'\t' 'NR == 1 {for (i = 1; i <= NF; i++) 
   echo "ok   11 does not count a column named final as FINAL"
 else
   echo "FAIL 11 counted FINAL in a query without FINAL"; failed=$((failed + 1))
+fi
+
+# 10 flags the TTL table, 27 lists the detached part, 13 lists the empty dictionary.
+as_reader() { "$CH" client --port "$TCP" --user sizing_reader --password "$PASS" -q "$(cat "$ROOT/queries/$1")" --format TSVWithNames; }
+if ! as_reader advisor/10_table_layout.sql | awk -F'\t' 'NR == 1 {for (i = 1; i <= NF; i++) if ($i == "has_ttl") c = i} NR > 1 && $2 == "with_ttl" && $c == 1 {found=1} END {exit !found}'; then
+  echo "FAIL 10 did not flag the table with TTL"; failed=$((failed + 1))
+else
+  echo "ok   10 flags the table with TTL"
+fi
+if as_reader advisor/10_table_layout.sql | awk -F'\t' 'NR == 1 {for (i = 1; i <= NF; i++) if ($i == "has_ttl") c = i} NR > 1 && $2 == "named_ttl" && $c == 1 {found=1} END {exit !found}'; then
+  echo "FAIL 10 flagged a column named ttl as TTL"; failed=$((failed + 1))
+else
+  echo "ok   10 does not flag a column named ttl"
+fi
+if ! as_reader progress/27_background_health.sql | awk -F'\t' '$1 == "detached part" && $2 ~ /^app\.copy/ {found=1} END {exit !found}'; then
+  echo "FAIL 27 did not list the detached part"; failed=$((failed + 1))
+else
+  echo "ok   27 lists the detached part"
+fi
+if ! as_reader advisor/13_service_objects.sql | awk -F'\t' '$1 == "dictionary empty or failed" && $2 ~ /^app\.empty_dict/ {found=1} END {exit !found}'; then
+  echo "FAIL 13 did not list the empty dictionary"; failed=$((failed + 1))
+else
+  echo "ok   13 lists the empty dictionary"
+fi
+if as_reader advisor/13_service_objects.sql | awk -F'\t' '$1 == "dictionary empty or failed" && $2 ~ /^app\.direct_dict/ {found=1} END {exit !found}'; then
+  echo "FAIL 13 listed a direct dictionary as empty"; failed=$((failed + 1))
+else
+  echo "ok   13 leaves out a direct dictionary"
 fi
 
 # The least-privilege user must not be able to read user tables.

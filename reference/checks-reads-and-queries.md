@@ -81,8 +81,8 @@ Each check names the columns it reads, the rule, and the public source of the ru
 ## Does ORDER BY ... LIMIT read the whole table?
 
 - **Columns**: `avg_read_rows`, `avg_result_rows`, `sample_query` (`queries/advisor/11_query_efficiency.sql`); `sorting_key` (`queries/advisor/10_table_layout.sql`).
-- **Rule**: with `ORDER BY ... LIMIT`, the server avoids reading all data only when the `ORDER BY` expression has a prefix that matches the table's sorting key (`optimize_read_in_order`). A pattern whose `sample_query` sorts by other columns and reads far more rows than it returns reads everything before the limit applies.
-- **Source**: https://clickhouse.com/docs/reference/statements/select/order-by
+- **Rule**: with `ORDER BY ... LIMIT`, the server avoids reading all data only when the `ORDER BY` expression has a prefix that matches the table's sorting key (`optimize_read_in_order`). A pattern whose `sample_query` sorts by other columns and reads far more rows than it returns reads everything before the limit applies. A sorting key on an expression does not match the bare column: a key on `toUnixTimestamp(ts)` is not used by `ORDER BY ts`. To confirm, `EXPLAIN PIPELINE` shows `algorithm: InOrder` when the optimization is used and `algorithm: Thread` for a normal read.
+- **Source**: https://clickhouse.com/docs/reference/statements/select/order-by , https://clickhouse.com/docs/resources/support-center/knowledge-base/performance-optimization/why-is-my-primary-key-not-used
 
 ## Is a CTE computed more than once?
 
